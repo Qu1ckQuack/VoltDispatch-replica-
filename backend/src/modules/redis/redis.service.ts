@@ -6,8 +6,11 @@ import { Redis } from 'ioredis';
 export class RedisService implements OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
   private readonly client: Redis;
+  private readonly config: ConfigService;
+  private subscriberClient: Redis | null = null;
 
   constructor(config: ConfigService) {
+    this.config = config;
     const restUrl = config.getOrThrow<string>('UPSTASH_REDIS_REST_URL');
     const token = config.getOrThrow<string>('UPSTASH_REDIS_REST_TOKEN');
     const host = new URL(restUrl).hostname;
@@ -23,10 +26,28 @@ export class RedisService implements OnModuleDestroy {
 
   async onModuleDestroy(): Promise<void> {
     await this.client.quit();
+    if (this.subscriberClient) {
+      await this.subscriberClient.quit();
+      this.subscriberClient = null;
+    }
   }
 
   getClient(): Redis {
     return this.client;
+  }
+
+  createSubscriber(): Redis {
+    if (!this.subscriberClient) {
+      const restUrl = this.config.getOrThrow<string>('UPSTASH_REDIS_REST_URL');
+      const token = this.config.getOrThrow<string>('UPSTASH_REDIS_REST_TOKEN');
+      const host = new URL(restUrl).hostname;
+      const redisUrl = `rediss://default:${encodeURIComponent(token)}@${host}:6379`;
+      this.subscriberClient = new Redis(redisUrl);
+      this.subscriberClient.on('error', (err) => {
+        this.logger.error('Redis subscriber error', err);
+      });
+    }
+    return this.subscriberClient;
   }
 
   async set(key: string, value: string, ttlSeconds?: number): Promise<void> {

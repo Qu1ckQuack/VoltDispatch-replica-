@@ -5,6 +5,7 @@ import { LocationGateway } from './location.gateway.js';
 import { LocationCacheService } from './location-cache.service.js';
 import { GeocodingCacheService } from './geocoding-cache.service.js';
 import { WsAuthService } from './services/ws-auth.service.js';
+import { PositionSyncService } from './services/position-sync.service.js';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { WsAuthService } from './services/ws-auth.service.js';
     LocationCacheService,
     GeocodingCacheService,
     WsAuthService,
+    PositionSyncService,
   ],
   exports: [LocationCacheService, GeocodingCacheService],
 })

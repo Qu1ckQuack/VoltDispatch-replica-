@@ -18,6 +18,7 @@ import { LocationsModule } from './modules/locations/locations.module.js';
 import { BullmqModule } from './modules/bullmq/bullmq.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { SlaModule } from './modules/sla/sla.module.js';
+import { MediaModule } from './modules/media/media.module.js';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { SlaModule } from './modules/sla/sla.module.js';
     BullmqModule,
     NotificationsModule,
     SlaModule,
+    MediaModule,
   ],
   controllers: [AppController],
   providers: [

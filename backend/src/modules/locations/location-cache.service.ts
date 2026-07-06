@@ -1,6 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Redis } from 'ioredis';
 import { RedisService } from '../redis/redis.service.js';
 
 export interface TechnicianPosition {
@@ -12,23 +10,12 @@ export interface TechnicianPosition {
 
 const POSITION_TTL_SECONDS = 300;
 const ACTIVE_TECH_SET_KEY = 'location:active:techs';
-const LOCATION_UPDATES_CHANNEL = 'location:updates';
 
 @Injectable()
 export class LocationCacheService {
   private readonly logger = new Logger(LocationCacheService.name);
-  private readonly publisher: Redis;
 
-  constructor(
-    private readonly redis: RedisService,
-    configService: ConfigService,
-  ) {
-    const restUrl = configService.getOrThrow<string>('UPSTASH_REDIS_REST_URL');
-    const token = configService.getOrThrow<string>('UPSTASH_REDIS_REST_TOKEN');
-    const host = new URL(restUrl).hostname;
-    const redisUrl = `rediss://default:${encodeURIComponent(token)}@${host}:6379`;
-    this.publisher = new Redis(redisUrl);
-  }
+  constructor(private readonly redis: RedisService) {}
 
   async setPosition(
     technicianId: string,
@@ -83,19 +70,4 @@ export class LocationCacheService {
     return map;
   }
 
-  async publishPosition(
-    technicianId: string,
-    lat: number,
-    lng: number,
-    orderId?: string,
-  ): Promise<void> {
-    const message = JSON.stringify({
-      technicianId,
-      lat,
-      lng,
-      timestamp: Date.now(),
-      orderId,
-    });
-    await this.publisher.publish(LOCATION_UPDATES_CHANNEL, message);
-  }
 }
