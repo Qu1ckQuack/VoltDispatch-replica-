@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../common/prisma.service.js';
 import { CreateDealerDto } from './dto/create-dealer.dto.js';
 import { UpdateDealerDto } from './dto/update-dealer.dto.js';
@@ -14,8 +18,11 @@ export class DealersService {
   }
 
   async create(dto: CreateDealerDto) {
-    const existing = await this.prisma.dealer.findUnique({ where: { userId: dto.userId } });
-    if (existing) throw new ConflictException('User already has a dealer profile');
+    const existing = await this.prisma.dealer.findUnique({
+      where: { userId: dto.userId },
+    });
+    if (existing)
+      throw new ConflictException('User already has a dealer profile');
 
     return this.prisma.dealer.create({
       data: {
@@ -29,7 +36,10 @@ export class DealersService {
 
   async findAll() {
     return this.prisma.dealer.findMany({
-      include: { user: true, _count: { select: { devices: true, workOrders: true } } },
+      include: {
+        user: true,
+        _count: { select: { devices: true, workOrders: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -47,7 +57,7 @@ export class DealersService {
     await this.findById(id);
     const data: Record<string, unknown> = {};
     if (dto.companyName !== undefined) data.companyName = dto.companyName;
-    if (dto.contactInfo !== undefined) data.contactInfo = dto.contactInfo as object;
+    if (dto.contactInfo !== undefined) data.contactInfo = dto.contactInfo;
 
     return this.prisma.dealer.update({
       where: { id },

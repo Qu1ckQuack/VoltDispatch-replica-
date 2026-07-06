@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../common/prisma.service.js';
 import { CreateCoordinatorDto } from './dto/create-coordinator.dto.js';
 import { UpdateCoordinatorDto } from './dto/update-coordinator.dto.js';
@@ -8,14 +12,20 @@ export class CoordinatorsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findByUserId(userId: string) {
-    const coordinator = await this.prisma.coordinator.findUnique({ where: { userId } });
-    if (!coordinator) throw new NotFoundException('Coordinator profile not found');
+    const coordinator = await this.prisma.coordinator.findUnique({
+      where: { userId },
+    });
+    if (!coordinator)
+      throw new NotFoundException('Coordinator profile not found');
     return coordinator;
   }
 
   async create(dto: CreateCoordinatorDto) {
-    const existing = await this.prisma.coordinator.findUnique({ where: { userId: dto.userId } });
-    if (existing) throw new ConflictException('User already has a coordinator profile');
+    const existing = await this.prisma.coordinator.findUnique({
+      where: { userId: dto.userId },
+    });
+    if (existing)
+      throw new ConflictException('User already has a coordinator profile');
 
     return this.prisma.coordinator.create({
       data: dto,

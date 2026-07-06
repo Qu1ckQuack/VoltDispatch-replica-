@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+} from '@nestjs/common';
 import { CoordinatorsService } from './coordinators.service.js';
 import { CreateCoordinatorDto } from './dto/create-coordinator.dto.js';
 import { UpdateCoordinatorDto } from './dto/update-coordinator.dto.js';

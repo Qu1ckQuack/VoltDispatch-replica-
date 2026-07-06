@@ -1,23 +1,18 @@
 import { Injectable } from '@nestjs/common';
+import { RedisService } from '../../redis/redis.service.js';
 
-const ACCESS_TOKEN_TTL_MS = 15 * 60 * 1000;
+const REVOKE_TTL_SECONDS = 15 * 60;
 
 @Injectable()
 export class TokenRevokeService {
-  private readonly revoked = new Set<string>();
-  private readonly timestamps = new Map<string, number>();
+  constructor(private readonly redis: RedisService) {}
 
-  revoke(userId: string): void {
-    this.revoked.add(userId);
-    this.timestamps.set(userId, Date.now());
-
-    setTimeout(() => {
-      this.revoked.delete(userId);
-      this.timestamps.delete(userId);
-    }, ACCESS_TOKEN_TTL_MS);
+  async revoke(userId: string): Promise<void> {
+    await this.redis.set(`revoked:user:${userId}`, '1', REVOKE_TTL_SECONDS);
   }
 
-  isRevoked(userId: string): boolean {
-    return this.revoked.has(userId);
+  async isRevoked(userId: string): Promise<boolean> {
+    const val = await this.redis.get(`revoked:user:${userId}`);
+    return val !== null;
   }
 }

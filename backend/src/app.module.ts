@@ -13,6 +13,11 @@ import { TechniciansModule } from './modules/technicians/technicians.module.js';
 import { CustomersModule } from './modules/customers/customers.module.js';
 import { WorkOrdersModule } from './modules/work-orders/work-orders.module.js';
 import { DevicesModule } from './modules/devices/devices.module.js';
+import { RedisModule } from './modules/redis/redis.module.js';
+import { LocationsModule } from './modules/locations/locations.module.js';
+import { BullmqModule } from './modules/bullmq/bullmq.module.js';
+import { NotificationsModule } from './modules/notifications/notifications.module.js';
+import { SlaModule } from './modules/sla/sla.module.js';
 
 @Module({
   imports: [
@@ -27,6 +32,8 @@ import { DevicesModule } from './modules/devices/devices.module.js';
         limit: 100,
       },
     ]),
+    RedisModule,
+    LocationsModule,
     AuthModule,
     UsersModule,
     CommonModule,
@@ -36,6 +43,9 @@ import { DevicesModule } from './modules/devices/devices.module.js';
     TechniciansModule,
     WorkOrdersModule,
     DevicesModule,
+    BullmqModule,
+    NotificationsModule,
+    SlaModule,
   ],
   controllers: [AppController],
   providers: [

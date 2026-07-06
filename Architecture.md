@@ -153,7 +153,7 @@ Each module owns its entities and exposes a service interface — no cross-modul
 |---|---|---|
 | Frontend (Next.js) | **Vercel** free tier | None meaningful at this scale — genuinely free |
 | Backend (NestJS + WS + BullMQ) | **Oracle Cloud "Always Free" VM** — Ampere A1, 2 OCPU / 12 GB RAM (reduced from 4/24 as of the June 2026 tier change) | Always-on, no sleep — unlike Render/Railway free tiers. But: self-managed TLS (Let's Encrypt/Certbot), process restarts (systemd/Docker restart policies), OS patching, monitoring. Ampere A1 capacity can be temporarily unavailable at instance-creation time in busy regions. **Home region for this project: Singapore** — closest Always-Free-eligible region to Bangkok, meaningfully lower latency than defaulting to a US region. Home region is locked at account creation. |
-| Redis | Self-hosted on the same Oracle VM (Docker container) | $0, avoids relying on any managed Redis free-tier's request limits with BullMQ's blocking commands — shares the VM's 12 GB RAM with the backend process |
+| Redis | **Upstash** free tier (30 MB, 1,000 req/day) | Priced per-request after free tier — no ops burden, avoids the single-VM fault domain. 30 MB is tight for geocoding cache + location cache + token revoke — monitor growth |
 | DB | Supabase Postgres free tier | Already free. **Caveat:** free-tier projects pause after 7 days with no API activity — mitigate with a scheduled daily ping (a free GitHub Actions cron hitting a health endpoint is enough) |
 | Object storage | Supabase Storage free tier | 1 GB — fine at MVP scale, watch growth as before/after images accumulate |
 | CI/CD runner | GitHub Actions | Free: 2,000 min/month on private repos, unlimited on public — comfortably covers this pipeline |
@@ -183,7 +183,7 @@ On tag v*.*.* (manual release):
   → on failure: docker compose up -d with the previous image tag (manual rollback — no platform-native auto-rollback without a managed host)
 ```
 
-Redis and the NestJS app run as two services in one `docker-compose.yml` on the VM. Frontend still deploys separately via Vercel's native GitHub integration.
+The NestJS app runs in a single container via `docker-compose.yml` on the VM. Redis is managed (Upstash) — no self-hosted container needed. Frontend still deploys separately via Vercel's native GitHub integration.
 
 ### Rollback caveat specific to Prisma
 

@@ -32,7 +32,7 @@ export class AuthService {
     }
 
     if (!user.isActive) {
-      this.tokenRevokeService.revoke(user.id);
+      await this.tokenRevokeService.revoke(user.id);
       throw new UnauthorizedException('Account is deactivated');
     }
 
@@ -60,7 +60,7 @@ export class AuthService {
       const user = await this.usersService.findById(payload.sub);
 
       if (!user.isActive) {
-        this.tokenRevokeService.revoke(user.id);
+        await this.tokenRevokeService.revoke(user.id);
         throw new UnauthorizedException('Account is deactivated');
       }
 
@@ -90,7 +90,10 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  private async resolveProfileId(userId: string, role: string): Promise<string | null> {
+  private async resolveProfileId(
+    userId: string,
+    role: string,
+  ): Promise<string | null> {
     try {
       switch (role) {
         case UserRole.DEALER:

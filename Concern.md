@@ -44,7 +44,7 @@ Technician Management System · Consolidated from architecture review, schema de
 Distinct from traditional security concerns, but they translate into outages and, in some cases, security gaps of their own — worth tracking alongside the rest:
 - **Oracle may reclaim idle "Always Free" instances** — the backend VM needs baseline activity to avoid this; a dead VM is a full outage, not a degraded state
 - **No managed platform patches the VM's OS for you** — unlike Render/Railway, security patching is entirely on whoever operates this. An unpatched internet-facing VM is a real attack surface, not just an availability risk
-- **Single VM = single point of failure** — backend, WebSocket gateway, and Redis all live on one instance. Any VM-level fault takes down live tracking, notifications, and the API simultaneously
+- **Single VM = single point of failure** — backend and WebSocket gateway on one instance; Redis (Upstash) is external. A VM-level fault takes down the API and WS gateway, but Redis cache and pub/sub survive. Live tracking and notifications are partially affected, not fully lost
 - **Supabase free-tier projects pause after 7 days of no API activity** — an unnoticed pause silently breaks the entire system (DB unreachable), not just a slow-down
 - **Supabase free-tier Postgres also caps at 500 MB total** — separate risk from the pause above, and slower to notice. `work_order_status_history` and `notifications` both grow unbounded by design (every transition, every send attempt, forever). Fine at MVP scale; needs a stated retention/archival policy before it isn't
 - **No platform-native auto-rollback** on a bad deploy — rollback is a manual `docker compose up -d` with the previous image tag, which means someone has to notice the failure and act, rather than the platform catching it automatically
@@ -113,8 +113,8 @@ Distinct from traditional security concerns, but they translate into outages and
 
 | Good | Bad / Risk |
 |---|---|
-| Achieving a genuine $0/month stack is realistic here (Vercel, Oracle Always Free VM, Supabase, self-hosted Redis) — a real cost saving for a pre-revenue MVP | This trades a monthly bill for ops responsibility that a small team may not be resourced for: self-managed TLS, patching, restarts, and monitoring, none of which existed as a concern under a managed host |
-| Self-hosting Redis alongside the backend sidesteps the earlier open question about Upstash's free-tier compatibility with BullMQ's blocking commands entirely | Puts backend, WebSocket gateway, and Redis on one VM — a single fault domain where a managed multi-service platform would have isolated failures |
+| Achieving a genuine $0/month stack is realistic here (Vercel, Oracle Always Free VM, Supabase, Upstash Redis) — a real cost saving for a pre-revenue MVP | This trades a monthly bill for ops responsibility that a small team may not be resourced for: self-managed TLS, patching, restarts, and monitoring, none of which existed as a concern under a managed host |
+| Upstash Redis eliminates the self-hosted ops burden (patching, restarts) and separates the Redis fault domain from the VM | Free tier caps at 30 MB and 1,000 daily requests — monitor for growth, especially geocoding cache and location cache. BullMQ blocking commands may need a dedicated plan if queues are added in Step 6 |
 
 ---
 

@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  Query,
+} from '@nestjs/common';
 import { WorkOrdersService } from './work-orders.service.js';
 import { CreateWorkOrderDto } from './dto/create-work-order.dto.js';
 import { AssignWorkOrderDto } from './dto/assign-work-order.dto.js';
@@ -15,12 +23,18 @@ export class WorkOrdersController {
 
   @Post()
   @Roles('DEALER')
-  create(@Body() dto: CreateWorkOrderDto, @CurrentUser() user: AuthenticatedUser) {
+  create(
+    @Body() dto: CreateWorkOrderDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.workOrdersService.create(dto, user);
   }
 
   @Get()
-  findAll(@CurrentUser() user: AuthenticatedUser, @Query() query?: WorkOrderQueryDto) {
+  findAll(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query?: WorkOrderQueryDto,
+  ) {
     return this.workOrdersService.findAll(user, query);
   }
 
@@ -89,7 +103,10 @@ export class WorkOrdersController {
 
   @Patch(':id/resolve-issue')
   @Roles('TECHNICIAN')
-  resolveIssue(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  resolveIssue(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.workOrdersService.resolveIssue(id, user);
   }
 

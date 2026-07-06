@@ -57,22 +57,32 @@ export class CustomersService {
     });
   }
 
-  async findById(id: string) {
+  async findById(id: string, user?: AuthenticatedUser) {
     const customer = await this.prisma.customer.findUnique({
       where: { id },
       include: { workOrders: true },
     });
     if (!customer) throw new NotFoundException('Customer not found');
+
+    if (user && user.role === UserRole.DEALER && user.profileId) {
+      const hasAccess = customer.workOrders.some(
+        (wo) => wo.dealerId === user.profileId,
+      );
+      if (!hasAccess) {
+        throw new NotFoundException('Customer not found');
+      }
+    }
+
     return customer;
   }
 
-  async update(id: string, dto: UpdateCustomerDto) {
-    await this.findById(id);
+  async update(id: string, dto: UpdateCustomerDto, user?: AuthenticatedUser) {
+    await this.findById(id, user);
     return this.prisma.customer.update({ where: { id }, data: dto });
   }
 
-  async remove(id: string) {
-    await this.findById(id);
+  async remove(id: string, user?: AuthenticatedUser) {
+    await this.findById(id, user);
     await this.prisma.customer.delete({ where: { id } });
     return { deleted: true };
   }

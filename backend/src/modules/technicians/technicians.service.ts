@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../common/prisma.service.js';
 import { CreateTechnicianDto } from './dto/create-technician.dto.js';
 import { UpdateTechnicianDto } from './dto/update-technician.dto.js';
@@ -9,14 +13,20 @@ export class TechniciansService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findByUserId(userId: string) {
-    const technician = await this.prisma.technician.findUnique({ where: { userId } });
-    if (!technician) throw new NotFoundException('Technician profile not found');
+    const technician = await this.prisma.technician.findUnique({
+      where: { userId },
+    });
+    if (!technician)
+      throw new NotFoundException('Technician profile not found');
     return technician;
   }
 
   async create(dto: CreateTechnicianDto) {
-    const existing = await this.prisma.technician.findUnique({ where: { userId: dto.userId } });
-    if (existing) throw new ConflictException('User already has a technician profile');
+    const existing = await this.prisma.technician.findUnique({
+      where: { userId: dto.userId },
+    });
+    if (existing)
+      throw new ConflictException('User already has a technician profile');
 
     return this.prisma.technician.create({
       data: dto,

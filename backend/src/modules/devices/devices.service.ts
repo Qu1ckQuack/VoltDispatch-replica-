@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../common/prisma.service.js';
 import { CreateDeviceDto } from './dto/create-device.dto.js';
 import { UpdateDeviceDto } from './dto/update-device.dto.js';
@@ -9,9 +14,15 @@ import { UserRole } from '../../generated/prisma/enums.js';
 export class DevicesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async assertDeviceAccess(id: string, user: AuthenticatedUser): Promise<void> {
+  private async assertDeviceAccess(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<void> {
     if (user.role === UserRole.HQ) return;
-    const device = await this.prisma.device.findUnique({ where: { id }, select: { dealerId: true } });
+    const device = await this.prisma.device.findUnique({
+      where: { id },
+      select: { dealerId: true },
+    });
     if (!device) throw new NotFoundException('Device not found');
     if (device.dealerId !== user.profileId) {
       throw new ForbiddenException('Access denied');
@@ -19,8 +30,11 @@ export class DevicesService {
   }
 
   async create(dto: CreateDeviceDto, dealerId: string) {
-    const existing = await this.prisma.device.findUnique({ where: { serialNumber: dto.serialNumber } });
-    if (existing) throw new ConflictException('Serial number already registered');
+    const existing = await this.prisma.device.findUnique({
+      where: { serialNumber: dto.serialNumber },
+    });
+    if (existing)
+      throw new ConflictException('Serial number already registered');
 
     return this.prisma.device.create({
       data: {
@@ -59,7 +73,7 @@ export class DevicesService {
     if (dto.model !== undefined) data.model = dto.model;
     if (dto.serialNumber !== undefined) data.serialNumber = dto.serialNumber;
     if (dto.ipAddress !== undefined) data.ipAddress = dto.ipAddress;
-    if (dto.metadata !== undefined) data.metadata = dto.metadata as object;
+    if (dto.metadata !== undefined) data.metadata = dto.metadata;
 
     return this.prisma.device.update({ where: { id }, data });
   }

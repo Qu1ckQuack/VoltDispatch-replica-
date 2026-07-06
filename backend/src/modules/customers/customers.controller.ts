@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+} from '@nestjs/common';
 import { CustomersService } from './customers.service.js';
 import { CreateCustomerDto } from './dto/create-customer.dto.js';
 import { UpdateCustomerDto } from './dto/update-customer.dto.js';
@@ -24,19 +32,23 @@ export class CustomersController {
 
   @Get(':id')
   @Roles('HQ', 'DEALER')
-  findById(@Param('id') id: string) {
-    return this.customersService.findById(id);
+  findById(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.customersService.findById(id, user);
   }
 
   @Patch(':id')
   @Roles('HQ', 'DEALER')
-  update(@Param('id') id: string, @Body() dto: UpdateCustomerDto) {
-    return this.customersService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateCustomerDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.customersService.update(id, dto, user);
   }
 
   @Delete(':id')
   @Roles('HQ', 'DEALER')
-  remove(@Param('id') id: string) {
-    return this.customersService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.customersService.remove(id, user);
   }
 }

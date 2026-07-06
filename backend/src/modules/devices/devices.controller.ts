@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  Query,
+} from '@nestjs/common';
 import { DevicesService } from './devices.service.js';
 import { CreateDeviceDto } from './dto/create-device.dto.js';
 import { UpdateDeviceDto } from './dto/update-device.dto.js';
@@ -18,7 +27,10 @@ export class DevicesController {
 
   @Get()
   @Roles('DEALER', 'HQ')
-  findAll(@CurrentUser() user: AuthenticatedUser, @Query('dealerId') dealerId?: string) {
+  findAll(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('dealerId') dealerId?: string,
+  ) {
     const scope = user.role === 'HQ' ? dealerId : user.profileId!;
     return this.devicesService.findAll(scope);
   }
@@ -31,7 +43,11 @@ export class DevicesController {
 
   @Patch(':id')
   @Roles('DEALER', 'HQ')
-  update(@Param('id') id: string, @Body() dto: UpdateDeviceDto, @CurrentUser() user: AuthenticatedUser) {
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateDeviceDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.devicesService.update(id, dto, user);
   }
 

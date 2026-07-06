@@ -1,4 +1,8 @@
-import { Injectable, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  ExecutionContext,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
@@ -13,7 +17,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     super();
   }
 
-  canActivate(context: ExecutionContext) {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -23,19 +27,21 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       return true;
     }
 
-    return super.canActivate(context);
-  }
-
-  handleRequest<TUser = { id: string }>(err: Error | null, user: TUser | false): TUser {
-    if (err || !user) {
-      throw err || new UnauthorizedException();
+    const result = await super.canActivate(context);
+    if (!result) {
+      return false;
     }
 
-    const u = user as unknown as { id: string };
-    if (this.tokenRevokeService.isRevoked(u.id)) {
-      throw new UnauthorizedException('Token has been revoked');
+    const request: Record<string, unknown> = context
+      .switchToHttp()
+      .getRequest();
+    const user = request.user as { id: string } | undefined;
+    if (user) {
+      if (await this.tokenRevokeService.isRevoked(user.id)) {
+        throw new UnauthorizedException('Token has been revoked');
+      }
     }
 
-    return user;
+    return true;
   }
 }

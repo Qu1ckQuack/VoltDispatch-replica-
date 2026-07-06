@@ -128,6 +128,7 @@ model User {
   phone        String?
   passwordHash String   @map("password_hash")
   role         UserRole
+  lineUserId   String?  @map("line_user_id")
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -230,6 +231,7 @@ model Customer {
   name        String
   phone       String?
   email       String?
+  lineUserId  String?  @map("line_user_id")
   address     String
   subDistrict String   @map("sub_district")
   accessToken String?  @unique @map("access_token")
