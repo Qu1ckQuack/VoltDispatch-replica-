@@ -1,0 +1,447 @@
+// ============================================================================
+// Technician Management System — Prisma Schema (Prisma ORM 7)
+// Supersedes schema.sql — this is now the canonical source of truth.
+// Prisma Migrate generates the actual SQL migrations from this file.
+// ============================================================================
+//
+// DESIGN NOTES — read before editing:
+//
+// 1. IDs use uuid(7), not uuid(4) or serial. UUIDv7 is time-ordered, so
+//    B-tree indexes on `id` (and FKs referencing it) stay append-friendly
+//    instead of fragmenting the way random UUIDv4 does at scale. This is a
+//    free performance win with no real downside for internal IDs.
+//
+// 2. `updatedAt` uses Prisma's native @updatedAt — replaces the hand-written
+//    Postgres trigger from the earlier raw-SQL draft entirely. One less
+//    moving part to maintain.
+//
+// 3. Row-level scoping (Dealer -> own orders, Coordinator -> department) is
+//    intentionally NOT expressed here. Prisma's schema has no concept of
+//    "current user" — that logic belongs in a NestJS guard/interceptor that
+//    adds a WHERE clause before the query reaches Prisma. See architecture
+//    doc §2 (Roles & Access Model).
+//
+// 4. Things Prisma's schema language genuinely cannot express natively —
+//    each flagged inline, with how to still get it done:
+//      - CHECK constraints           -> custom SQL in a Prisma migration
+//      - Partial (filtered) indexes  -> custom SQL in a Prisma migration
+//      - Materialized views          -> custom SQL in a Prisma migration
+//      - INET column type            -> stored as String, validated at the
+//                                        DTO layer (class-validator @IsIP())
+//    Pattern for all of these: `npx prisma migrate dev --create-only`,
+//    then hand-edit the generated SQL file before applying it.
+//
+// 5. The technician ratingAvg/ratingCount aggregate update — a raw SQL
+//    trigger in the earlier draft — moves to the application layer here:
+//    a Prisma $transaction wrapping the Rating insert + the Technician
+//    update (see RatingService). This is the more idiomatic Prisma
+//    pattern — business logic stays visible and testable in TypeScript
+//    instead of hidden in a trigger nothing outside psql can see.
+//    Trade-off: it only fires if every write path goes through that one
+//    service method, whereas a DB trigger would catch even a stray manual
+//    insert. Given this system's writes are constrained to the NestJS API
+//    (no external tools writing directly to the DB), that trade-off holds.
+// ============================================================================
+
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [pgcrypto, pg_stat_statements, supabase_vault]
+}
+
+// Connection string, shadow DB URL, and seed script now live in
+// prisma.config.ts (Prisma 7+) — not in this file. See companion file.
+
+// ----------------------------------------------------------------------------
+// Enums
+// ----------------------------------------------------------------------------
+
+enum UserRole {
+  HQ
+  DEALER
+  COORDINATOR
+  TECHNICIAN
+
+  @@map("user_role")
+}
+
+enum TechnicianStatus {
+  AVAILABLE
+  BUSY
+  OFFLINE
+
+  @@map("technician_status")
+}
+
+enum WorkOrderStatus {
+  REQUESTED
+  ASSIGNED
+  ACCEPTED
+  RESCHEDULED
+  EN_ROUTE
+  IN_PROGRESS
+  ISSUE
+  ESCALATED
+  COMPLETED
+  CANCELLED
+
+  @@map("work_order_status")
+}
+
+enum ImageType {
+  BEFORE
+  AFTER
+
+  @@map("image_type")
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  LINE
+
+  @@map("notification_channel")
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+
+  @@map("notification_status")
+}
+
+// ----------------------------------------------------------------------------
+// users — base identity for HQ / Dealer / Coordinator / Technician.
+// Customers are deliberately excluded (see Customer model below) — they
+// don't need full account infrastructure, just scoped access.
+// ----------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  email        String   @unique
+  phone        String?
+  passwordHash String   @map("password_hash")
+  role         UserRole
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  dealer            Dealer?
+  coordinator       Coordinator?
+  technician        Technician?
+  statusChangesMade WorkOrderStatusHistory[]
+  imagesUploaded    WorkOrderImage[]
+  notifications     Notification[]
+
+  @@index([role])
+  @@map("users")
+}
+
+// ----------------------------------------------------------------------------
+// dealers
+// ----------------------------------------------------------------------------
+
+model Dealer {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  userId      String   @unique @map("user_id") @db.Uuid
+  companyName String   @map("company_name")
+  contactInfo Json     @default("{}") @map("contact_info") // variable fields: address, backup phone, etc.
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  devices    Device[]
+  workOrders WorkOrder[]
+
+  @@map("dealers")
+}
+
+// ----------------------------------------------------------------------------
+// coordinators
+// ----------------------------------------------------------------------------
+
+model Coordinator {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  userId     String   @unique @map("user_id") @db.Uuid
+  department String
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([department])
+  @@map("coordinators")
+}
+
+// ----------------------------------------------------------------------------
+// technicians
+// lastLat/lastLng/lastLocationAt = last-known position synced from Redis,
+// NOT the live feed. Live tracking stays out of Postgres entirely — see
+// architecture doc §6.
+// ----------------------------------------------------------------------------
+
+model Technician {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  userId         String           @unique @map("user_id") @db.Uuid
+  subDistrict    String           @map("sub_district")
+  status         TechnicianStatus @default(OFFLINE)
+  lastLat        Float?           @map("last_lat")
+  lastLng        Float?           @map("last_lng")
+  lastLocationAt DateTime?        @map("last_location_at")
+  ratingAvg      Decimal          @default(0) @map("rating_avg") @db.Decimal(3, 2)
+  ratingCount    Int              @default(0) @map("rating_count")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  workOrders WorkOrder[]
+  ratings    Rating[]
+
+  // Matches the Coordinator "select available technician" drawer's exact
+  // filter pattern — one composite index, not two separate single-column ones.
+  @@index([subDistrict, status])
+  @@map("technicians")
+}
+
+// ----------------------------------------------------------------------------
+// customers
+// accessToken supports a tokenized magic-link auth model (architecture doc
+// §11, Open Decision #1) — nullable so this still works if you land on full
+// customer accounts instead.
+//
+// subDistrict is the required source for WorkOrder.subDistrict (see note on
+// that model) — captured via dropdown/autocomplete against a static Thai
+// sub-district list at intake, NOT parsed from `address` and NOT geocoded
+// (architecture doc §11, Open Decision #3 explains why). Deliberately the
+// only address field broken out: nothing else in the system queries on
+// province, district, or postal code, so `address` stays a single free-text
+// field for the rest rather than a fully decomposed address — no value in
+// normalizing structure that nothing reads.
+// ----------------------------------------------------------------------------
+
+model Customer {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  name        String
+  phone       String?
+  email       String?
+  address     String
+  subDistrict String   @map("sub_district")
+  accessToken String?  @unique @map("access_token")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workOrders    WorkOrder[]
+  ratings       Rating[]
+  notifications Notification[]
+
+  @@map("customers")
+}
+
+// ----------------------------------------------------------------------------
+// devices — chargers being serviced.
+// `metadata` is JSONB: charger models genuinely vary in attributes
+// (voltage spec, connector type, firmware version) — narrower use of JSONB
+// than forcing fixed columns or an EAV table.
+// ----------------------------------------------------------------------------
+
+model Device {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  dealerId     String   @map("dealer_id") @db.Uuid
+  model        String
+  serialNumber String   @unique @map("serial_number")
+  ipAddress    String?  @map("ip_address") // no native INET type in Prisma — validate at DTO layer (class-validator @IsIP())
+  metadata     Json     @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  dealer     Dealer      @relation(fields: [dealerId], references: [id], onDelete: Restrict)
+  workOrders WorkOrder[]
+
+  @@index([dealerId])
+  @@map("devices")
+}
+
+// ----------------------------------------------------------------------------
+// work_orders — core aggregate root.
+//
+// subDistrict is copied from customer.subDistrict at creation time. This is
+// a DELIBERATE denormalization: the Coordinator queue must filter
+// "unassigned orders in district X" before a technician (and therefore a
+// join target for district) even exists on the row. Set once in application
+// code at creation — never edited afterward.
+// ----------------------------------------------------------------------------
+
+model WorkOrder {
+  id              String          @id @default(uuid(7)) @db.Uuid
+  dealerId        String          @map("dealer_id") @db.Uuid
+  customerId      String          @map("customer_id") @db.Uuid
+  technicianId    String?         @map("technician_id") @db.Uuid // app layer nulls this on ASSIGNED->REQUESTED (decline), same transaction as the status-history write — see architecture doc §3. Keeps "my assigned orders" queries accurate without needing every call site to also filter on status.
+  deviceId        String          @map("device_id") @db.Uuid
+  status          WorkOrderStatus @default(REQUESTED)
+  priority        Int             @default(0) // 0=normal, 1=high, 2=urgent
+  slaDeadline     DateTime?       @map("sla_deadline")
+  appointmentDate DateTime?       @map("appointment_date")
+  department      String?         // Coordinator scoping — set at creation by dealer; nullable so non-department workflows aren't forced to adopt it
+  subDistrict     String          @map("sub_district") // denormalized by design — see note above
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  dealer        Dealer                   @relation(fields: [dealerId], references: [id], onDelete: Restrict)
+  customer      Customer                 @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  technician    Technician?              @relation(fields: [technicianId], references: [id], onDelete: SetNull)
+  device        Device                   @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  statusHistory WorkOrderStatusHistory[]
+  images        WorkOrderImage[]
+  rating        Rating?
+
+  @@index([dealerId]) // Dealer's "my own work orders" view
+  @@index([technicianId]) // Technician's "my upcoming work orders" view
+  @@index([subDistrict, status]) // Coordinator queue: unassigned/active orders by area
+  @@index([slaDeadline]) // HQ SLA breach scan — see partial-index note below
+  @@map("work_orders")
+}
+
+// NOTE on the SLA index: schema.sql used a partial index
+// (WHERE status NOT IN ('COMPLETED','CANCELLED')) so the breach scan skips
+// closed orders entirely. Prisma's schema language has no partial-index
+// syntax — the @@index above creates a full index instead. To get the
+// partial version: `npx prisma migrate dev --create-only` after adding
+// this index, then hand-edit the generated migration SQL to add the WHERE
+// clause before applying it.
+
+// ----------------------------------------------------------------------------
+// work_order_status_history — audit trail. Snapshots from/to status at the
+// time of transition rather than deriving them by replaying events —
+// correct by design for an audit log, not a modeling shortcut.
+// ----------------------------------------------------------------------------
+
+model WorkOrderStatusHistory {
+  id              String           @id @default(uuid(7)) @db.Uuid
+  workOrderId     String           @map("work_order_id") @db.Uuid
+  fromStatus      WorkOrderStatus? @map("from_status")
+  toStatus        WorkOrderStatus  @map("to_status")
+  changedByUserId String?          @map("changed_by_user_id") @db.Uuid
+  note            String?
+  changedAt       DateTime         @default(now()) @map("changed_at")
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  changedBy User?     @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([workOrderId, changedAt])
+  @@map("work_order_status_history")
+}
+
+// ----------------------------------------------------------------------------
+// work_order_images — before/after photos. URL only; binary lives in object
+// storage (Supabase Storage / S3) per the architecture doc.
+// ----------------------------------------------------------------------------
+
+model WorkOrderImage {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  workOrderId String    @map("work_order_id") @db.Uuid
+  type        ImageType
+  url         String
+  uploadedBy  String?   @map("uploaded_by") @db.Uuid
+  uploadedAt  DateTime  @default(now()) @map("uploaded_at")
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  uploader  User?     @relation(fields: [uploadedBy], references: [id], onDelete: SetNull)
+
+  @@index([workOrderId])
+  @@map("work_order_images")
+}
+
+// ----------------------------------------------------------------------------
+// ratings — one per completed work order.
+// technicians.ratingAvg/ratingCount updated via an application-layer
+// transaction (RatingService), not a DB trigger — see design note #5 at
+// the top of this file.
+// ----------------------------------------------------------------------------
+
+model Rating {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  workOrderId  String   @unique @map("work_order_id") @db.Uuid
+  customerId   String   @map("customer_id") @db.Uuid
+  technicianId String   @map("technician_id") @db.Uuid
+  score        Int      // enforce 1-5 at the DTO layer (class-validator @Min(1) @Max(5))
+                         // AND via a CHECK constraint added through a custom
+                         // migration — Prisma schema has no @@check syntax
+  comment      String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  workOrder  WorkOrder  @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  technician Technician @relation(fields: [technicianId], references: [id], onDelete: Restrict)
+
+  @@map("ratings")
+}
+
+// ----------------------------------------------------------------------------
+// notifications — recipient is either a User or a Customer, never both.
+// `payload` is JSONB because content genuinely varies by notification type
+// (status_change vs sla_warning vs rating_request).
+//
+// The XOR rule (exactly one of userId/customerId set) is another case
+// Prisma's schema can't express natively — add via custom migration SQL:
+//   ALTER TABLE notifications ADD CONSTRAINT chk_one_recipient CHECK (
+//     (user_id IS NOT NULL AND customer_id IS NULL) OR
+//     (user_id IS NULL AND customer_id IS NOT NULL)
+//   );
+// ----------------------------------------------------------------------------
+
+model Notification {
+  id         String              @id @default(uuid(7)) @db.Uuid
+  userId     String?             @map("user_id") @db.Uuid
+  customerId String?             @map("customer_id") @db.Uuid
+  channel    NotificationChannel
+  type       String
+  payload    Json                @default("{}")
+  status     NotificationStatus  @default(PENDING)
+  sentAt     DateTime?           @map("sent_at")
+  createdAt  DateTime            @default(now()) @map("created_at")
+
+  user     User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  // BullMQ worker's pending-job query — becomes a partial index once added
+  // via custom migration (WHERE status = 'PENDING'); full index here.
+  @@index([status])
+  @@index([userId])
+  @@index([customerId])
+  @@map("notifications")
+}
+
+// ============================================================================
+// hq_kpi_summary — NOT representable in schema.prisma. Materialized views
+// have no Prisma schema syntax at all (unlike regular views, which have a
+// preview `view` block that's still read-only). Create it entirely by hand:
+//
+//   1. npx prisma migrate dev --create-only --name add_hq_kpi_summary
+//   2. Add this SQL to the generated migration file:
+//
+//        CREATE MATERIALIZED VIEW hq_kpi_summary AS
+//        SELECT sub_district, status, COUNT(*) AS order_count,
+//               COUNT(*) FILTER (WHERE sla_deadline < now()
+//                 AND status NOT IN ('COMPLETED','CANCELLED')) AS sla_breached_count
+//        FROM work_orders
+//        GROUP BY sub_district, status;
+//
+//        CREATE UNIQUE INDEX idx_hq_kpi_summary_key
+//          ON hq_kpi_summary(sub_district, status);
+//
+//   3. npx prisma migrate deploy
+//
+// Query it from application code with a typed raw query:
+//   prisma.$queryRaw<{ sub_district: string; status: string; order_count: bigint; sla_breached_count: bigint }[]>`
+//     SELECT * FROM hq_kpi_summary
+//   `
+// Refresh on a schedule (BullMQ repeatable job, e.g. every 60s):
+//   prisma.$executeRaw`REFRESH MATERIALIZED VIEW CONCURRENTLY hq_kpi_summary`
+// Don't wire this up until dashboard query latency is a felt problem.
+// ============================================================================

@@ -7,7 +7,7 @@ Technician Management System · Consolidated from architecture review, schema de
 ## Part 1 — Security Concerns
 
 ### 1.1 Authentication & Session
-- JWT expiry/rotation policy — short-lived access tokens + refresh rotation, not long-lived tokens
+- JWT expiry/rotation policy — short-lived access tokens + refresh rotation, not long-lived tokens. Note the gap this doesn't close on its own: deactivating a user (`isActive = false`) doesn't retroactively invalidate a still-valid access token — an off-boarded technician or a compromised account can keep acting until natural expiry. Check `isActive` on every refresh-token rotation, and back it with a short-lived Redis deny-list of revoked user IDs checked by the access-token guard for immediate cutoff — no new infra, Redis is already in the stack.
 - Customer `access_token` (magic link) needs: expiry, single-work-order scoping, and brute-force protection (long random token, rate-limited lookup on the endpoint that resolves it)
 - Password policy + bcrypt cost factor tuning
 - Auth validated on WebSocket upgrade handshake, not just REST — and re-validated on sensitive socket events, not assumed to persist for the life of the connection
@@ -39,6 +39,15 @@ Technician Management System · Consolidated from architecture review, schema de
 ### 1.7 Third-Party Integrations
 - LINE / SMS / email provider API keys scoped narrowly, rotated periodically
 - Maps API key restricted by domain/referrer and quota-capped, since Google Maps free tier caps don't pool across SKUs — an unrestricted key is also a billing-abuse vector, not just a security one
+
+### 1.8 Free-Tier Hosting Risks
+Distinct from traditional security concerns, but they translate into outages and, in some cases, security gaps of their own — worth tracking alongside the rest:
+- **Oracle may reclaim idle "Always Free" instances** — the backend VM needs baseline activity to avoid this; a dead VM is a full outage, not a degraded state
+- **No managed platform patches the VM's OS for you** — unlike Render/Railway, security patching is entirely on whoever operates this. An unpatched internet-facing VM is a real attack surface, not just an availability risk
+- **Single VM = single point of failure** — backend, WebSocket gateway, and Redis all live on one instance. Any VM-level fault takes down live tracking, notifications, and the API simultaneously
+- **Supabase free-tier projects pause after 7 days of no API activity** — an unnoticed pause silently breaks the entire system (DB unreachable), not just a slow-down
+- **Supabase free-tier Postgres also caps at 500 MB total** — separate risk from the pause above, and slower to notice. `work_order_status_history` and `notifications` both grow unbounded by design (every transition, every send attempt, forever). Fine at MVP scale; needs a stated retention/archival policy before it isn't
+- **No platform-native auto-rollback** on a bad deploy — rollback is a manual `docker compose up -d` with the previous image tag, which means someone has to notice the failure and act, rather than the platform catching it automatically
 
 ---
 
@@ -100,6 +109,15 @@ Technician Management System · Consolidated from architecture review, schema de
 
 ---
 
+### 2.9 Hosting Strategy
+
+| Good | Bad / Risk |
+|---|---|
+| Achieving a genuine $0/month stack is realistic here (Vercel, Oracle Always Free VM, Supabase, self-hosted Redis) — a real cost saving for a pre-revenue MVP | This trades a monthly bill for ops responsibility that a small team may not be resourced for: self-managed TLS, patching, restarts, and monitoring, none of which existed as a concern under a managed host |
+| Self-hosting Redis alongside the backend sidesteps the earlier open question about Upstash's free-tier compatibility with BullMQ's blocking commands entirely | Puts backend, WebSocket gateway, and Redis on one VM — a single fault domain where a managed multi-service platform would have isolated failures |
+
+---
+
 ## Part 3 — Priority Call
 
 **Launch-blockers (must resolve before production):**
@@ -107,9 +125,12 @@ Technician Management System · Consolidated from architecture review, schema de
 - Server-side state-transition validation (§1.4)
 - Secrets management (§1.6)
 - Signed URLs for image storage (§1.3)
+- Supabase keep-alive ping to prevent silent free-tier pause (§1.8)
+- Docker restart policy (`unless-stopped`) + basic uptime monitoring on the Oracle VM (§1.8) — cheap to set up, prevents an unnoticed outage from going undetected
 
 **Hardening pass (can follow shortly after launch, not before):**
 - Column-level encryption for PII
 - Full audit logging of auth events
 - Rate limiting tuning based on real traffic
 - WebSocket message size/rate limits refined with real usage data
+- VM patching cadence and a backup/redundancy plan for the single-VM setup (§1.8) — acceptable to defer for MVP, but revisit before this is business-critical
