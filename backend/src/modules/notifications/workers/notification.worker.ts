@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { Worker } from 'bullmq';
 import { NOTIFICATION_QUEUE_NAME } from '../../bullmq/queues/notification.queue.js';
 import { NotificationsService } from '../notifications.service.js';
-import { buildRedisConnectionOptions } from '../../bullmq/bullmq.module.js';
+import { buildRedisConnectionOptions } from '../../common/utils/redis-connection.js';
 
 @Injectable()
 export class NotificationWorker implements OnModuleInit, OnModuleDestroy {

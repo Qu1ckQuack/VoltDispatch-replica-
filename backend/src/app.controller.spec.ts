@@ -1,5 +1,3 @@
-/// <reference types="jest" />
-
 jest.mock('./modules/common/prisma.service.js', () => ({
   PrismaService: class {},
 }));

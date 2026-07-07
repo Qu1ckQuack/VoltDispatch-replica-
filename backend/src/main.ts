@@ -8,7 +8,7 @@ async function bootstrap() {
   app.enableShutdownHooks();
   await app.listen(process.env.PORT ?? 3000);
 }
-void bootstrap().catch((err: unknown) => {
+bootstrap().catch((err: unknown) => {
   console.error('Failed to start application', err);
   process.exit(1);
 });

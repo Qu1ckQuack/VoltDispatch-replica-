@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Redis } from 'ioredis';
+import { buildRedisUrl } from '../common/utils/redis-connection.js';
 
 @Injectable()
 export class RedisService implements OnModuleDestroy {
@@ -11,10 +12,7 @@ export class RedisService implements OnModuleDestroy {
 
   constructor(config: ConfigService) {
     this.config = config;
-    const restUrl = config.getOrThrow<string>('UPSTASH_REDIS_REST_URL');
-    const token = config.getOrThrow<string>('UPSTASH_REDIS_REST_TOKEN');
-    const host = new URL(restUrl).hostname;
-    const redisUrl = `rediss://default:${encodeURIComponent(token)}@${host}:6379`;
+    const redisUrl = buildRedisUrl(config);
     this.client = new Redis(redisUrl);
     this.client.on('error', (err) => {
       this.logger.error('Redis connection error', err);
@@ -38,10 +36,7 @@ export class RedisService implements OnModuleDestroy {
 
   createSubscriber(): Redis {
     if (!this.subscriberClient) {
-      const restUrl = this.config.getOrThrow<string>('UPSTASH_REDIS_REST_URL');
-      const token = this.config.getOrThrow<string>('UPSTASH_REDIS_REST_TOKEN');
-      const host = new URL(restUrl).hostname;
-      const redisUrl = `rediss://default:${encodeURIComponent(token)}@${host}:6379`;
+      const redisUrl = buildRedisUrl(this.config);
       this.subscriberClient = new Redis(redisUrl);
       this.subscriberClient.on('error', (err) => {
         this.logger.error('Redis subscriber error', err);

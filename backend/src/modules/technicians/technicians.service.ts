@@ -1,33 +1,31 @@
-import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../common/prisma.service.js';
+import { ProfileBaseService } from '../common/services/profile-base.service.js';
+import { UsersService } from '../users/users.service.js';
 import { CreateTechnicianDto } from './dto/create-technician.dto.js';
 import { UpdateTechnicianDto } from './dto/update-technician.dto.js';
 import { UpdateStatusDto } from './dto/update-status.dto.js';
 
 @Injectable()
-export class TechniciansService {
-  constructor(private readonly prisma: PrismaService) {}
+export class TechniciansService extends ProfileBaseService {
+  constructor(prisma: PrismaService, usersService: UsersService) {
+    super(prisma, usersService);
+  }
+
+  protected get modelName(): string {
+    return 'technician';
+  }
+
+  protected get displayName(): string {
+    return 'Technician';
+  }
 
   async findByUserId(userId: string) {
-    const technician = await this.prisma.technician.findUnique({
-      where: { userId },
-    });
-    if (!technician)
-      throw new NotFoundException('Technician profile not found');
-    return technician;
+    return super.findByUserId(userId) as Promise<{ id: string; userId: string }>;
   }
 
   async create(dto: CreateTechnicianDto) {
-    const existing = await this.prisma.technician.findUnique({
-      where: { userId: dto.userId },
-    });
-    if (existing)
-      throw new ConflictException('User already has a technician profile');
-
+    await this.profileExists(dto.userId);
     return this.prisma.technician.create({
       data: dto,
       include: { user: true },
@@ -42,30 +40,16 @@ export class TechniciansService {
   }
 
   async findById(id: string) {
-    const technician = await this.prisma.technician.findUnique({
-      where: { id },
-      include: { user: true },
-    });
-    if (!technician) throw new NotFoundException('Technician not found');
-    return technician;
+    return this.getProfileById(id);
   }
 
   async update(id: string, dto: UpdateTechnicianDto) {
-    await this.findById(id);
+    await this.getProfileById(id);
     return this.prisma.technician.update({
       where: { id },
       data: dto,
       include: { user: true },
     });
-  }
-
-  async remove(id: string) {
-    const technician = await this.findById(id);
-    await this.prisma.user.update({
-      where: { id: technician.userId },
-      data: { isActive: false },
-    });
-    return { deleted: true };
   }
 
   async updateStatus(id: string, dto: UpdateStatusDto) {

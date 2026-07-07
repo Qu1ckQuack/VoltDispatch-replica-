@@ -1,29 +1,34 @@
-import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../common/prisma.service.js';
+import { ProfileBaseService } from '../common/services/profile-base.service.js';
+import { UsersService } from '../users/users.service.js';
 import { CreateDealerDto } from './dto/create-dealer.dto.js';
 import { UpdateDealerDto } from './dto/update-dealer.dto.js';
 
 @Injectable()
-export class DealersService {
-  constructor(private readonly prisma: PrismaService) {}
+export class DealersService extends ProfileBaseService {
+  constructor(prisma: PrismaService, usersService: UsersService) {
+    super(prisma, usersService);
+  }
+
+  protected get modelName(): string {
+    return 'dealer';
+  }
+
+  protected get displayName(): string {
+    return 'Dealer';
+  }
 
   async findByUserId(userId: string) {
-    const dealer = await this.prisma.dealer.findUnique({ where: { userId } });
-    if (!dealer) throw new NotFoundException('Dealer profile not found');
-    return dealer;
+    return super.findByUserId(userId) as Promise<{
+      id: string;
+      userId: string;
+      companyName: string;
+    }>;
   }
 
   async create(dto: CreateDealerDto) {
-    const existing = await this.prisma.dealer.findUnique({
-      where: { userId: dto.userId },
-    });
-    if (existing)
-      throw new ConflictException('User already has a dealer profile');
-
+    await this.profileExists(dto.userId);
     return this.prisma.dealer.create({
       data: {
         userId: dto.userId,
@@ -45,33 +50,18 @@ export class DealersService {
   }
 
   async findById(id: string) {
-    const dealer = await this.prisma.dealer.findUnique({
-      where: { id },
-      include: { user: true, devices: true },
-    });
-    if (!dealer) throw new NotFoundException('Dealer not found');
-    return dealer;
+    return this.getProfileById(id, { devices: true });
   }
 
   async update(id: string, dto: UpdateDealerDto) {
-    await this.findById(id);
+    await this.getProfileById(id);
     const data: Record<string, unknown> = {};
     if (dto.companyName !== undefined) data.companyName = dto.companyName;
     if (dto.contactInfo !== undefined) data.contactInfo = dto.contactInfo;
-
     return this.prisma.dealer.update({
       where: { id },
       data,
       include: { user: true },
     });
-  }
-
-  async remove(id: string) {
-    const dealer = await this.findById(id);
-    await this.prisma.user.update({
-      where: { id: dealer.userId },
-      data: { isActive: false },
-    });
-    return { deleted: true };
   }
 }

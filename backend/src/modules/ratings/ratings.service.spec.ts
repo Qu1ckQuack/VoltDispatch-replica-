@@ -89,17 +89,18 @@ describe('RatingsService', () => {
         status: 'COMPLETED',
       });
 
-      mockPrismaTransaction.mockImplementation(async (fn: Function) =>
-        fn({
-          rating: {
-            create: mockPrismaRatingCreate,
-            aggregate: mockPrismaRatingAggregate,
-            count: mockPrismaRatingCount,
-          },
-          technician: {
-            update: mockPrismaTechnicianUpdate,
-          },
-        }),
+      mockPrismaTransaction.mockImplementation(
+        (fn: (tx: Record<string, unknown>) => unknown) =>
+          fn({
+            rating: {
+              create: mockPrismaRatingCreate,
+              aggregate: mockPrismaRatingAggregate,
+              count: mockPrismaRatingCount,
+            },
+            technician: {
+              update: mockPrismaTechnicianUpdate,
+            },
+          }),
       );
 
       mockPrismaRatingCreate.mockResolvedValue({
@@ -179,21 +180,22 @@ describe('RatingsService', () => {
         status: 'COMPLETED',
       });
 
-      mockPrismaTransaction.mockImplementation(async (fn: Function) =>
-        fn({
-          rating: {
-            create: mockPrismaRatingCreate,
-            aggregate: mockPrismaRatingAggregate,
-            count: mockPrismaRatingCount,
-          },
-          technician: {
-            update: mockPrismaTechnicianUpdate,
-          },
-        }),
+      mockPrismaTransaction.mockImplementation(
+        (fn: (tx: Record<string, unknown>) => unknown) =>
+          fn({
+            rating: {
+              create: mockPrismaRatingCreate,
+              aggregate: mockPrismaRatingAggregate,
+              count: mockPrismaRatingCount,
+            },
+            technician: {
+              update: mockPrismaTechnicianUpdate,
+            },
+          }),
       );
 
-      const p2002 = new Error('Unique constraint');
-      (p2002 as any).code = 'P2002';
+      const p2002 = new Error('Unique constraint') as Error & { code: string };
+      p2002.code = 'P2002';
       mockPrismaRatingCreate.mockRejectedValue(p2002);
 
       await expect(service.create('wo-1', dto, mockCustomer)).rejects.toThrow(

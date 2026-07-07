@@ -22,6 +22,11 @@ import { AssignWorkOrderDto } from './dto/assign-work-order.dto.js';
 import { RescheduleWorkOrderDto } from './dto/reschedule-work-order.dto.js';
 import type { WorkOrderQueryDto } from './dto/work-order-query.dto.js';
 
+import {
+  WORK_ORDER_NUMBER_LENGTH,
+  DEFAULT_PAGE_LIMIT,
+} from '../common/constants.js';
+
 const ACTIVITIES_CHANNEL = 'hq:activities';
 
 const CANCEL_RULES: Partial<Record<WorkOrderStatus, string[]>> = {
@@ -89,8 +94,10 @@ export class WorkOrdersService {
       where,
       include: { customer: true, device: true, technician: true },
       orderBy: { createdAt: 'desc' },
-      take: query?.limit ?? 50,
-      skip: query?.page ? (query.page - 1) * (query.limit ?? 50) : 0,
+      take: query?.limit ?? DEFAULT_PAGE_LIMIT,
+      skip: query?.page
+        ? (query.page - 1) * (query.limit ?? DEFAULT_PAGE_LIMIT)
+        : 0,
     });
   }
 
@@ -179,6 +186,102 @@ export class WorkOrdersService {
     return updated;
   }
 
+  private async notifyTechnician(
+    orderId: string,
+    technicianId: string,
+    type: string,
+    extraPayload?: Record<string, unknown>,
+  ): Promise<void> {
+    const tech = await this.prisma.technician.findUnique({
+      where: { id: technicianId },
+      select: { userId: true },
+    });
+    if (!tech) return;
+    await this.notificationsService.enqueue(
+      orderId,
+      NotificationChannel.LINE,
+      type,
+      {
+        workOrderNumber: orderId.slice(0, WORK_ORDER_NUMBER_LENGTH),
+        ...extraPayload,
+      },
+      tech.userId,
+    );
+  }
+
+  private async notifyCustomer(
+    orderId: string,
+    customerId: string,
+    channelPref: NotificationChannel | null,
+    type: string,
+    extraPayload?: Record<string, unknown>,
+  ): Promise<void> {
+    const channel = channelPref ?? NotificationChannel.EMAIL;
+    await this.notificationsService.enqueue(
+      orderId,
+      channel,
+      type,
+      {
+        workOrderNumber: orderId.slice(0, WORK_ORDER_NUMBER_LENGTH),
+        ...extraPayload,
+      },
+      undefined,
+      customerId,
+    );
+  }
+
+  private async notifyCustomerAuto(
+    orderId: string,
+    customerId: string,
+    type: string,
+    extraPayload?: Record<string, unknown>,
+  ): Promise<void> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { id: true, email: true, lineUserId: true },
+    });
+    if (!customer) return;
+    if (customer.lineUserId) {
+      await this.notifyCustomer(
+        orderId,
+        customer.id,
+        NotificationChannel.LINE,
+        type,
+        extraPayload,
+      );
+    } else if (customer.email) {
+      await this.notifyCustomer(
+        orderId,
+        customer.id,
+        NotificationChannel.EMAIL,
+        type,
+        extraPayload,
+      );
+    }
+  }
+
+  private async notifyDealer(
+    orderId: string,
+    type: string,
+    extraPayload?: Record<string, unknown>,
+  ): Promise<void> {
+    const orderWithDealer = await this.prisma.workOrder.findUnique({
+      where: { id: orderId },
+      select: { dealer: { select: { userId: true } } },
+    });
+    if (!orderWithDealer?.dealer.userId) return;
+    await this.notificationsService.enqueue(
+      orderId,
+      NotificationChannel.EMAIL,
+      type,
+      {
+        workOrderNumber: orderId.slice(0, WORK_ORDER_NUMBER_LENGTH),
+        ...extraPayload,
+      },
+      orderWithDealer.dealer.userId,
+    );
+  }
+
   private async notifyStatusChange(
     order: {
       id: string;
@@ -187,171 +290,79 @@ export class WorkOrdersService {
       dealerId: string;
       technicianId: string | null;
     },
-    fromStatus: WorkOrderStatus,
+    _fromStatus: WorkOrderStatus,
     toStatus: WorkOrderStatus,
   ): Promise<void> {
-    try {
-      switch (toStatus) {
-        case WorkOrderStatus.ASSIGNED:
-          if (order.technicianId) {
-            const tech = await this.prisma.technician.findUnique({
-              where: { id: order.technicianId },
-              select: { userId: true },
-            });
-            if (tech) {
-              await this.notificationsService.enqueue(
-                order.id,
-                NotificationChannel.LINE,
-                'order_assigned',
-                { workOrderNumber: order.id.slice(0, 8) },
-                tech.userId,
-              );
-            }
-          }
-          break;
-
-        case WorkOrderStatus.ACCEPTED:
-          if (order.technicianId) {
-            const tech = await this.prisma.technician.findUnique({
-              where: { id: order.technicianId },
-              select: { userId: true },
-            });
-            if (tech) {
-              await this.notificationsService.enqueue(
-                order.id,
-                NotificationChannel.LINE,
-                'status_change',
-                {
-                  workOrderNumber: order.id.slice(0, 8),
-                  newStatus: 'ACCEPTED',
-                },
-                tech.userId,
-              );
-            }
-          }
-          break;
-
-        case WorkOrderStatus.EN_ROUTE: {
-          const customer = await this.prisma.customer.findUnique({
-            where: { id: order.customerId },
-            select: { id: true, email: true, lineUserId: true },
-          });
-          if (customer) {
-            if (customer.lineUserId) {
-              await this.notificationsService.enqueue(
-                order.id,
-                NotificationChannel.LINE,
-                'en_route',
-                { workOrderNumber: order.id.slice(0, 8) },
-                undefined,
-                customer.id,
-              );
-            } else if (customer.email) {
-              await this.notificationsService.enqueue(
-                order.id,
-                NotificationChannel.EMAIL,
-                'en_route',
-                { workOrderNumber: order.id.slice(0, 8) },
-                undefined,
-                customer.id,
-              );
-            }
-          }
-          break;
+    switch (toStatus) {
+      case WorkOrderStatus.ASSIGNED:
+        if (order.technicianId) {
+          await this.notifyTechnician(
+            order.id,
+            order.technicianId,
+            'order_assigned',
+          );
         }
+        break;
 
-        case WorkOrderStatus.IN_PROGRESS:
-          if (order.technicianId) {
-            const tech = await this.prisma.technician.findUnique({
-              where: { id: order.technicianId },
-              select: { userId: true },
-            });
-            if (tech) {
-              await this.notificationsService.enqueue(
-                order.id,
-                NotificationChannel.LINE,
-                'status_change',
-                {
-                  workOrderNumber: order.id.slice(0, 8),
-                  newStatus: 'IN_PROGRESS',
-                },
-                tech.userId,
-              );
-            }
-          }
-          break;
-
-        case WorkOrderStatus.COMPLETED: {
-          const cust = await this.prisma.customer.findUnique({
-            where: { id: order.customerId },
-            select: { id: true, email: true },
-          });
-          if (cust?.email) {
-            await this.notificationsService.enqueue(
-              order.id,
-              NotificationChannel.EMAIL,
-              'rating_request',
-              {
-                workOrderNumber: order.id.slice(0, 8),
-                ratingUrl: `${process.env.FRONTEND_URL ?? 'http://localhost:3000'}/rate/${order.id}`,
-              },
-              undefined,
-              cust.id,
-            );
-          }
-          break;
+      case WorkOrderStatus.ACCEPTED:
+        if (order.technicianId) {
+          await this.notifyTechnician(
+            order.id,
+            order.technicianId,
+            'status_change',
+            { newStatus: 'ACCEPTED' },
+          );
         }
+        break;
 
-        case WorkOrderStatus.RESCHEDULED:
-          if (order.technicianId) {
-            const tech = await this.prisma.technician.findUnique({
-              where: { id: order.technicianId },
-              select: { userId: true },
-            });
-            if (tech) {
-              await this.notificationsService.enqueue(
-                order.id,
-                NotificationChannel.LINE,
-                'status_change',
-                {
-                  workOrderNumber: order.id.slice(0, 8),
-                  newStatus: 'RESCHEDULED',
-                },
-                tech.userId,
-              );
-            }
-          }
-          break;
+      case WorkOrderStatus.EN_ROUTE:
+        await this.notifyCustomerAuto(order.id, order.customerId, 'en_route');
+        break;
 
-        case WorkOrderStatus.ISSUE:
-        case WorkOrderStatus.ESCALATED: {
-          const orderWithDealer = await this.prisma.workOrder.findUnique({
-            where: { id: order.id },
-            select: {
-              dealer: { select: { userId: true } },
-            },
-          });
-          if (orderWithDealer?.dealer.userId) {
-            await this.notificationsService.enqueue(
-              order.id,
-              NotificationChannel.EMAIL,
-              toStatus === WorkOrderStatus.ESCALATED
-                ? 'issue_escalated'
-                : 'status_change',
-              {
-                workOrderNumber: order.id.slice(0, 8),
-                newStatus: toStatus,
-              },
-              orderWithDealer.dealer.userId,
-            );
-          }
-          break;
+      case WorkOrderStatus.IN_PROGRESS:
+        if (order.technicianId) {
+          await this.notifyTechnician(
+            order.id,
+            order.technicianId,
+            'status_change',
+            { newStatus: 'IN_PROGRESS' },
+          );
         }
-      }
-    } catch (err) {
-      this.logger.warn(
-        `Failed to enqueue notification: ${(err as Error).message}`,
-      );
+        break;
+
+      case WorkOrderStatus.COMPLETED:
+        await this.notifyCustomer(
+          order.id,
+          order.customerId,
+          null,
+          'rating_request',
+          {
+            ratingUrl: `${process.env.FRONTEND_URL ?? 'http://localhost:3000'}/rate/${order.id}`,
+          },
+        );
+        break;
+
+      case WorkOrderStatus.RESCHEDULED:
+        if (order.technicianId) {
+          await this.notifyTechnician(
+            order.id,
+            order.technicianId,
+            'status_change',
+            { newStatus: 'RESCHEDULED' },
+          );
+        }
+        break;
+
+      case WorkOrderStatus.ISSUE:
+      case WorkOrderStatus.ESCALATED:
+        await this.notifyDealer(
+          order.id,
+          toStatus === WorkOrderStatus.ESCALATED
+            ? 'issue_escalated'
+            : 'status_change',
+          { newStatus: toStatus },
+        );
+        break;
     }
   }
 

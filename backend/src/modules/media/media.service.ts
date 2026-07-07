@@ -56,7 +56,10 @@ export class MediaService {
     return { ...image, url };
   }
 
-  async findByWorkOrder(workOrderId: string, user: AuthenticatedUser) {
+  private async getScopedWorkOrderOrThrow(
+    workOrderId: string,
+    user: AuthenticatedUser,
+  ) {
     const scope = await this.scopingService.applyWorkOrderScope(user);
     const workOrder = await this.prisma.workOrder.findFirst({
       where: { id: workOrderId, ...scope },
@@ -66,6 +69,12 @@ export class MediaService {
     if (!workOrder) {
       throw new NotFoundException('Work order not found');
     }
+
+    return workOrder;
+  }
+
+  async findByWorkOrder(workOrderId: string, user: AuthenticatedUser) {
+    await this.getScopedWorkOrderOrThrow(workOrderId, user);
 
     const images = await this.prisma.workOrderImage.findMany({
       where: { workOrderId },
@@ -83,15 +92,7 @@ export class MediaService {
   }
 
   async delete(workOrderId: string, imageId: string, user: AuthenticatedUser) {
-    const scope = await this.scopingService.applyWorkOrderScope(user);
-    const workOrder = await this.prisma.workOrder.findFirst({
-      where: { id: workOrderId, ...scope },
-      select: { id: true },
-    });
-
-    if (!workOrder) {
-      throw new NotFoundException('Work order not found');
-    }
+    await this.getScopedWorkOrderOrThrow(workOrderId, user);
 
     const image = await this.prisma.workOrderImage.findUnique({
       where: { id: imageId },

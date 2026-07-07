@@ -3,23 +3,78 @@ jest.mock('../common/prisma.service.js', () => ({
 }));
 
 import { Test, TestingModule } from '@nestjs/testing';
+import { Server, WebSocket } from 'ws';
 import { LocationGateway } from './location.gateway.js';
 import { LocationCacheService } from './location-cache.service.js';
 import { WsAuthService } from './services/ws-auth.service.js';
+import { RoomManagerService } from './services/room-manager.service.js';
+import { PositionRateLimiterService } from './services/position-rate-limiter.service.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { RedisService } from '../redis/redis.service.js';
 
-function createMockWs(): any {
+function createMockWs(): jest.Mocked<WebSocket> {
   return {
-    readyState: 1,
-    OPEN: 1,
+    readyState: WebSocket.OPEN,
+    OPEN: WebSocket.OPEN,
+    CONNECTING: WebSocket.CONNECTING,
+    CLOSING: WebSocket.CLOSING,
+    CLOSED: WebSocket.CLOSED,
+    url: '',
+    protocol: '',
+    extensions: '',
+    binaryType: 'nodebuffer',
+    bufferedAmount: 0,
+    isPaused: false,
+    onopen: null,
+    onerror: null,
+    onclose: null,
+    onmessage: null,
+    on: jest.fn(),
+    once: jest.fn(),
+    emit: jest.fn(),
     send: jest.fn(),
     close: jest.fn(),
+    ping: jest.fn(),
+    pong: jest.fn(),
+    terminate: jest.fn(),
+    pause: jest.fn(),
+    resume: jest.fn(),
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    addListener: jest.fn(),
+    removeListener: jest.fn(),
+    off: jest.fn(),
+    removeAllListeners: jest.fn(),
+    listeners: jest.fn(),
+    rawListeners: jest.fn(),
+    listenerCount: jest.fn(),
+    eventNames: jest.fn(),
+    prependListener: jest.fn(),
+    prependOnceListener: jest.fn(),
+    setMaxListeners: jest.fn(),
+    getMaxListeners: jest.fn(),
+  } as jest.Mocked<WebSocket>;
+}
+
+interface TestClientData {
+  user: { id: string; role: string; profileId: string | null; email: string };
+}
+
+function getGatewayTestAccessor(gateway: LocationGateway) {
+  return gateway as unknown as {
+    server: Server;
+    clientData: Map<WebSocket, TestClientData>;
+    roomManager: RoomManagerService;
+    rateLimiter: PositionRateLimiterService;
   };
 }
 
+/* eslint-disable @typescript-eslint/unbound-method */
+
 describe('LocationGateway', () => {
   let gateway: LocationGateway;
+  let roomManager: RoomManagerService;
+  let rateLimiter: PositionRateLimiterService;
 
   const mockWsAuthVerify = jest.fn();
   const mockCacheSetPosition = jest.fn();
@@ -53,6 +108,8 @@ describe('LocationGateway', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LocationGateway,
+        RoomManagerService,
+        PositionRateLimiterService,
         {
           provide: WsAuthService,
           useValue: { verify: mockWsAuthVerify },
@@ -88,8 +145,11 @@ describe('LocationGateway', () => {
     }).compile();
 
     gateway = module.get<LocationGateway>(LocationGateway);
-    // avoid unsafe `any` member access in tests
-    (gateway as any).server = {};
+    roomManager = module.get<RoomManagerService>(RoomManagerService);
+    rateLimiter = module.get<PositionRateLimiterService>(
+      PositionRateLimiterService,
+    );
+    getGatewayTestAccessor(gateway).server = {} as Server;
 
     await gateway.onModuleInit();
   });
@@ -158,7 +218,7 @@ describe('LocationGateway', () => {
       mockPrismaWorkOrderFindMany.mockResolvedValue([]);
       await gateway.handleConnection(client, request);
 
-      (client.send as jest.Mock).mockClear();
+      client.send.mockClear();
       mockCacheGetPosition.mockResolvedValue({
         lat: 13.756,
         lng: 100.501,
@@ -172,6 +232,7 @@ describe('LocationGateway', () => {
         data: {
           lastLat: 13.756,
           lastLng: 100.501,
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           lastLocationAt: expect.any(Date),
         },
       });
@@ -194,13 +255,14 @@ describe('LocationGateway', () => {
       ]);
       await gateway.handleConnection(client, request);
 
-      expect((gateway as any).clientData.get(client).subscribedRooms.size).toBe(
-        3,
-      );
+      expect(roomManager.getClientRooms(client).size).toBe(3);
 
       await gateway.handleDisconnect(client);
 
-      expect((gateway as any).clientData.has(client)).toBe(false);
+      expect(getGatewayTestAccessor(gateway).clientData.has(client)).toBe(
+        false,
+      );
+      expect(roomManager.getClientRooms(client).size).toBe(0);
     });
   });
 
@@ -221,14 +283,14 @@ describe('LocationGateway', () => {
       mockRedisPublish.mockResolvedValue(1);
       await gateway.handleConnection(client, request);
 
-      (gateway as any).rateLimits.set(client, {
-        lastAcceptedTime: 0,
-        consecutiveDrops: 0,
-        dropWindowStart: 0,
-        bannedUntil: 0,
-      });
+      // Reset rate limit to ensure first update is accepted
+      const rlState = rateLimiter.getState(client)!;
+      rlState.lastAcceptedTime = 0;
+      rlState.consecutiveDrops = 0;
+      rlState.dropWindowStart = 0;
+      rlState.bannedUntil = 0;
 
-      (client.send as jest.Mock).mockClear();
+      client.send.mockClear();
 
       await gateway.handlePositionUpdate(client, {
         lat: 13.756,
@@ -262,7 +324,7 @@ describe('LocationGateway', () => {
       mockPrismaWorkOrderFindMany.mockResolvedValue([]);
       await gateway.handleConnection(client, request);
 
-      (client.send as jest.Mock).mockClear();
+      client.send.mockClear();
 
       await gateway.handlePositionUpdate(client, {
         lat: 13.756,
@@ -290,12 +352,11 @@ describe('LocationGateway', () => {
       mockRedisPublish.mockResolvedValue(1);
       await gateway.handleConnection(client, request);
 
-      (gateway as any).rateLimits.set(client, {
-        lastAcceptedTime: 0,
-        consecutiveDrops: 0,
-        dropWindowStart: 0,
-        bannedUntil: 0,
-      });
+      const rlState = rateLimiter.getState(client)!;
+      rlState.lastAcceptedTime = 0;
+      rlState.consecutiveDrops = 0;
+      rlState.dropWindowStart = 0;
+      rlState.bannedUntil = 0;
 
       await gateway.handlePositionUpdate(client, {
         lat: 13.756,
@@ -324,13 +385,11 @@ describe('LocationGateway', () => {
       mockPrismaWorkOrderFindMany.mockResolvedValue([]);
       await gateway.handleConnection(client, request);
 
-      const rlState = {
-        lastAcceptedTime: 0,
-        consecutiveDrops: 0,
-        dropWindowStart: Date.now(),
-        bannedUntil: 0,
-      };
-      (gateway as any).rateLimits.set(client, rlState);
+      const rlState = rateLimiter.getState(client)!;
+      rlState.lastAcceptedTime = 0;
+      rlState.consecutiveDrops = 0;
+      rlState.dropWindowStart = Date.now();
+      rlState.bannedUntil = 0;
 
       mockCacheSetPosition.mockResolvedValue(undefined);
       mockRedisPublish.mockResolvedValue(1);
@@ -365,18 +424,16 @@ describe('LocationGateway', () => {
       mockPrismaWorkOrderFindMany.mockResolvedValue([]);
       await gateway.handleConnection(client, request);
 
-      (client.send as jest.Mock).mockClear();
+      client.send.mockClear();
 
       await gateway.handleSubscribe(client, { room: 'room:order:order-1' });
 
       expect(client.send).toHaveBeenCalledWith(
         expect.stringContaining('"subscribed"'),
       );
-      expect(
-        (gateway as any).clientData
-          .get(client)
-          .subscribedRooms.has('room:order:order-1'),
-      ).toBe(true);
+      expect(roomManager.getClientRooms(client).has('room:order:order-1')).toBe(
+        true,
+      );
     });
 
     it('should reject subscribe to unrecognized room pattern', async () => {
@@ -393,7 +450,7 @@ describe('LocationGateway', () => {
       mockPrismaWorkOrderFindMany.mockResolvedValue([]);
       await gateway.handleConnection(client, request);
 
-      (client.send as jest.Mock).mockClear();
+      client.send.mockClear();
 
       await gateway.handleSubscribe(client, { room: 'invalid-room' });
 
@@ -417,7 +474,7 @@ describe('LocationGateway', () => {
       mockPrismaWorkOrderFindFirst.mockResolvedValue(null);
       await gateway.handleConnection(client, request);
 
-      (client.send as jest.Mock).mockClear();
+      client.send.mockClear();
 
       await gateway.handleSubscribe(client, { room: 'room:order:order-1' });
 
@@ -443,15 +500,11 @@ describe('LocationGateway', () => {
       await gateway.handleConnection(client, request);
 
       await gateway.handleSubscribe(client, { room: 'room:order:order-1' });
-      expect((gateway as any).clientData.get(client).subscribedRooms.size).toBe(
-        2,
-      );
+      expect(roomManager.getClientRooms(client).size).toBe(2);
 
       gateway.handleUnsubscribe(client, { room: 'room:order:order-1' });
 
-      expect((gateway as any).clientData.get(client).subscribedRooms.size).toBe(
-        1,
-      );
+      expect(roomManager.getClientRooms(client).size).toBe(1);
     });
   });
 });

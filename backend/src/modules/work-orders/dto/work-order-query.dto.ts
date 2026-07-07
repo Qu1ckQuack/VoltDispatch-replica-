@@ -18,18 +18,18 @@ export class WorkOrderQueryDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  @Transform(({ value }) => parseInt(value, 10))
+  @Transform(({ value }) => parseInt(value as string, 10))
   priority?: number;
 
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Transform(({ value }) => parseInt(value, 10))
+  @Transform(({ value }) => parseInt(value as string, 10))
   page?: number;
 
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Transform(({ value }) => parseInt(value, 10))
+  @Transform(({ value }) => parseInt(value as string, 10))
   limit?: number;
 }

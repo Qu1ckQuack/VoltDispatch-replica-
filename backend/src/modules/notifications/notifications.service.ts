@@ -10,6 +10,7 @@ import { PrismaService } from '../common/prisma.service.js';
 import type { NotificationAdapter } from './adapters/notification-adapter.interface.js';
 import { ResendAdapter } from './adapters/resend.adapter.js';
 import { LineAdapter } from './adapters/line.adapter.js';
+import { DEFAULT_PAGE_LIMIT } from '../common/constants.js';
 import {
   NotificationChannel,
   NotificationStatus,
@@ -158,7 +159,7 @@ export class NotificationsService {
     if (options.customerId) where.customerId = options.customerId;
 
     const page = options.page ?? 1;
-    const limit = options.limit ?? 50;
+    const limit = options.limit ?? DEFAULT_PAGE_LIMIT;
 
     const [data, total] = await Promise.all([
       this.prisma.notification.findMany({

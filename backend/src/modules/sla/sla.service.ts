@@ -8,7 +8,8 @@ import { ConfigService } from '@nestjs/config';
 import { Queue, Worker } from 'bullmq';
 import { InjectQueue } from '../bullmq/helpers.js';
 import { SLA_TIMER_QUEUE_NAME } from '../bullmq/queues/sla-timer.queue.js';
-import { buildRedisConnectionOptions } from '../bullmq/bullmq.module.js';
+import { buildRedisConnectionOptions } from '../common/utils/redis-connection.js';
+import { WORK_ORDER_NUMBER_LENGTH } from '../common/constants.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import {
@@ -119,7 +120,7 @@ export class SlaService implements OnModuleInit, OnModuleDestroy {
           NotificationChannel.LINE,
           'sla_warning',
           {
-            workOrderNumber: order.id.slice(0, 8),
+            workOrderNumber: order.id.slice(0, WORK_ORDER_NUMBER_LENGTH),
             slaDeadline: order.slaDeadline?.toISOString(),
           },
           order.technician.userId,
@@ -132,7 +133,7 @@ export class SlaService implements OnModuleInit, OnModuleDestroy {
           NotificationChannel.EMAIL,
           'sla_warning',
           {
-            workOrderNumber: order.id.slice(0, 8),
+            workOrderNumber: order.id.slice(0, WORK_ORDER_NUMBER_LENGTH),
             slaDeadline: order.slaDeadline?.toISOString(),
           },
           order.dealer.userId,

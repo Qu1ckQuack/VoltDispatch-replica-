@@ -4,10 +4,10 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
-  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../common/prisma.service.js';
 import { ScopingService } from '../common/services/scoping.service.js';
+import { handlePrismaError } from '../common/utils/prisma-error.js';
 import { WorkOrderStatus } from '../../generated/prisma/enums.js';
 import type { CreateRatingDto } from './dto/create-rating.dto.js';
 import type { AuthenticatedUser } from '../common/services/scoping.service.js';
@@ -88,16 +88,11 @@ export class RatingsService {
 
       return result;
     } catch (err) {
-      if (err instanceof Error && 'code' in err) {
-        const prismaErr = err as { code: string };
-        if (prismaErr.code === 'P2002') {
-          throw new ConflictException('This work order has already been rated');
-        }
-        if (prismaErr.code === 'P2025') {
-          throw new NotFoundException('Technician no longer exists');
-        }
-      }
-      throw err;
+      handlePrismaError(
+        err,
+        'This work order has already been rated',
+        'Technician no longer exists',
+      );
     }
   }
 

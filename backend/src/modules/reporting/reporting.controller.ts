@@ -1,7 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ReportingService } from './reporting.service.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
-import { SummaryQueryDto, SearchQueryDto } from './dto/summery-query.dto.js';
+import { SummaryQueryDto, SearchQueryDto } from './dto/summary-query.dto.js';
 
 @Controller('reporting')
 @Roles('HQ')

@@ -36,9 +36,6 @@ export class PositionSyncService implements OnModuleInit, OnModuleDestroy {
   }
 
   async syncActivePositions(): Promise<void> {
-    // NOTE: This races with LocationGateway.handleDisconnect, which also writes
-    // lastLat/lastLng on technician disconnect. Both read from the same Redis cache
-    // and write identical values — last-value-wins, so the race is benign.
     const positions = await this.locationCache.getActivePositions();
 
     if (positions.size === 0) return;

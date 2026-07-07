@@ -71,6 +71,7 @@ export class S3StorageService {
       this.logger.warn(
         `Failed to delete S3 object ${key}: ${(err as Error).message}`,
       );
+      throw err;
     }
   }
 

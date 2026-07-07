@@ -46,8 +46,10 @@ export class LocationCacheService {
     if (!raw) return null;
     try {
       return JSON.parse(raw) as TechnicianPosition;
-    } catch {
-      this.logger.warn(`Invalid position data for technician ${technicianId}`);
+    } catch (err) {
+      this.logger.warn(
+        `Invalid position data for technician ${technicianId}: ${(err as Error).message}`,
+      );
       return null;
     }
   }
@@ -71,8 +73,10 @@ export class LocationCacheService {
       try {
         const pos = JSON.parse(raw) as TechnicianPosition;
         map.set(ids[i], pos);
-      } catch {
-        this.logger.warn(`Invalid position data for technician ${ids[i]}`);
+      } catch (err) {
+        this.logger.warn(
+          `Invalid position data for technician ${ids[i]}: ${(err as Error).message}`,
+        );
       }
     }
 

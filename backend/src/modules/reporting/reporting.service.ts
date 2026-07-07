@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../common/prisma.service.js';
 import { WorkOrderStatus } from '../../generated/prisma/enums.js';
-import type { SummaryQueryDto } from './dto/summery-query.dto.js';
+import { DEFAULT_PAGE_LIMIT, SEVEN_DAYS_MS } from '../common/constants.js';
+import type { SummaryQueryDto } from './dto/summary-query.dto.js';
 
 @Injectable()
 export class ReportingService {
@@ -10,29 +11,43 @@ export class ReportingService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getOverview() {
-    const [
-      stats,
-      dailyByStatus,
-      pendingLast7Days,
-      recentlyCompleted,
-      technicianWorkload,
-      recentActivities,
-    ] = await Promise.all([
-      this.getStats(),
-      this.getDailyByStatusRaw(),
-      this.getPendingLast7Days(),
-      this.getRecentlyCompleted(),
-      this.getTechnicianWorkload(),
-      this.getRecentActivities(),
-    ]);
+    const queries = [
+      this.getStats().catch((err) => {
+        this.logger.error(`Failed to fetch stats: ${(err as Error).message}`);
+        return null;
+      }),
+      this.getDailyByStatusRaw().catch((err) => {
+        this.logger.error(`Failed to fetch daily by status: ${(err as Error).message}`);
+        return null;
+      }),
+      this.getPendingLast7Days().catch((err) => {
+        this.logger.error(`Failed to fetch pending orders: ${(err as Error).message}`);
+        return null;
+      }),
+      this.getRecentlyCompleted().catch((err) => {
+        this.logger.error(`Failed to fetch recently completed: ${(err as Error).message}`);
+        return null;
+      }),
+      this.getTechnicianWorkload().catch((err) => {
+        this.logger.error(`Failed to fetch technician workload: ${(err as Error).message}`);
+        return null;
+      }),
+      this.getRecentActivities().catch((err) => {
+        this.logger.error(`Failed to fetch recent activities: ${(err as Error).message}`);
+        return null;
+      }),
+    ] as const;
+
+    const [stats, dailyByStatus, pendingLast7Days, recentlyCompleted, technicianWorkload, recentActivities] =
+      await Promise.all(queries);
 
     return {
       stats,
-      dailyByStatus,
-      pendingLast7Days,
-      recentlyCompleted,
-      technicianWorkload,
-      recentActivities,
+      dailyByStatus: dailyByStatus ?? [],
+      pendingLast7Days: pendingLast7Days ?? [],
+      recentlyCompleted: recentlyCompleted ?? [],
+      technicianWorkload: technicianWorkload ?? [],
+      recentActivities: recentActivities ?? [],
     };
   }
 
@@ -78,7 +93,7 @@ export class ReportingService {
   private async getPendingLast7Days() {
     return this.prisma.workOrder.findMany({
       where: {
-        createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+        createdAt: { gte: new Date(Date.now() - SEVEN_DAYS_MS) },
         status: {
           notIn: [WorkOrderStatus.COMPLETED, WorkOrderStatus.CANCELLED],
         },
@@ -89,7 +104,7 @@ export class ReportingService {
         technician: { select: { id: true, user: { select: { email: true } } } },
       },
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      take: DEFAULT_PAGE_LIMIT,
     });
   }
 
@@ -102,7 +117,7 @@ export class ReportingService {
         technician: { select: { id: true, user: { select: { email: true } } } },
       },
       orderBy: { updatedAt: 'desc' },
-      take: 20,
+      take: DEFAULT_PAGE_LIMIT,
     });
   }
 
@@ -286,6 +301,9 @@ export class ReportingService {
   }
 
   async search(query: string) {
+    if (!query || query.length < 2) {
+      return [];
+    }
     const keyword = `%${query}%`;
 
     const rows = await this.prisma.$queryRaw<

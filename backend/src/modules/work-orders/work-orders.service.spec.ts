@@ -38,8 +38,6 @@ const mockNotificationsEnqueue = jest.fn();
 const mockRedisPublish = jest.fn();
 const mockPrismaTechnicianFindUnique = jest.fn();
 const mockPrismaCustomerFindUnique = jest.fn();
-const mockPrismaDealerFindUnique = jest.fn();
-const mockPrismaWorkOrderFindUniqueWithDealer = jest.fn();
 
 function makeUser(
   overrides: Partial<{
@@ -104,8 +102,7 @@ describe('WorkOrdersService', () => {
     mockRedisPublish.mockReset();
     mockPrismaTechnicianFindUnique.mockReset();
     mockPrismaCustomerFindUnique.mockReset();
-    mockPrismaDealerFindUnique.mockReset();
-    mockPrismaWorkOrderFindUniqueWithDealer.mockReset();
+
     mockPrismaTransaction.mockImplementation(
       (cb: (tx: Record<string, unknown>) => unknown) =>
         cb({
@@ -132,7 +129,6 @@ describe('WorkOrdersService', () => {
             workOrderStatusHistory: { create: mockPrismaStatusHistoryCreate },
             technician: { findUnique: mockPrismaTechnicianFindUnique },
             customer: { findUnique: mockPrismaCustomerFindUnique },
-            dealer: { findUnique: mockPrismaDealerFindUnique },
             $transaction: mockPrismaTransaction,
           },
         },
@@ -261,9 +257,13 @@ describe('WorkOrdersService', () => {
       );
       expect(result.status).toBe(WorkOrderStatus.COMPLETED);
       expect(mockPrismaWorkOrderUpdate).toHaveBeenCalledWith(
+        /* eslint-disable @typescript-eslint/no-unsafe-assignment */
         expect.objectContaining({
-          data: expect.objectContaining({ completedAt: expect.any(Date) }),
+          data: expect.objectContaining({
+            completedAt: expect.any(Date),
+          }),
         }),
+        /* eslint-enable @typescript-eslint/no-unsafe-assignment */
       );
       expect(result).toHaveProperty('completedAt');
     });
@@ -297,7 +297,13 @@ describe('WorkOrdersService', () => {
         'hq:activities',
         expect.stringContaining('status_change'),
       );
-      const published = JSON.parse(mockRedisPublish.mock.calls[0][1]);
+      const [, callData] = mockRedisPublish.mock.calls[0] as [string, string];
+      const published = JSON.parse(callData) as {
+        type: string;
+        orderId: string;
+        fromStatus: WorkOrderStatus;
+        toStatus: WorkOrderStatus;
+      };
       expect(published.type).toBe('status_change');
       expect(published.orderId).toBe('order-1');
       expect(published.fromStatus).toBe(WorkOrderStatus.EN_ROUTE);

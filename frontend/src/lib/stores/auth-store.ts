@@ -1,0 +1,32 @@
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+import type { UserPayload } from '@/lib/api/types'
+
+interface AuthState {
+  accessToken: string | null
+  refreshToken: string | null
+  user: UserPayload | null
+  isAuthenticated: boolean
+  login: (accessToken: string, refreshToken: string, user: UserPayload) => void
+  logout: () => void
+  setTokens: (accessToken: string, refreshToken: string) => void
+  setUser: (user: UserPayload) => void
+}
+
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      accessToken: null,
+      refreshToken: null,
+      user: null,
+      isAuthenticated: false,
+      login: (accessToken, refreshToken, user) =>
+        set({ accessToken, refreshToken, user, isAuthenticated: true }),
+      logout: () =>
+        set({ accessToken: null, refreshToken: null, user: null, isAuthenticated: false }),
+      setTokens: (accessToken, refreshToken) => set({ accessToken, refreshToken }),
+      setUser: (user) => set({ user }),
+    }),
+    { name: 'volt-dispatch-auth' },
+  ),
+)

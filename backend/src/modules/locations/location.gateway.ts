@@ -22,28 +22,17 @@ import { LocationCacheService } from './location-cache.service.js';
 import { UpdatePositionDto } from './dto/update-position.dto.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { RedisService } from '../redis/redis.service.js';
+import { RoomManagerService } from './services/room-manager.service.js';
+import { PositionRateLimiterService } from './services/position-rate-limiter.service.js';
 import { WorkOrderStatus } from '../../generated/prisma/enums.js';
 
 const LOCATION_UPDATES_CHANNEL = 'location:updates';
 const HQ_ACTIVITIES_CHANNEL = 'hq:activities';
 
-const MIN_POSITION_INTERVAL_MS = 5000;
-const MAX_CONSECUTIVE_DROPS = 10;
-const DROP_WINDOW_MS = 60000;
-const RATE_LIMIT_BAN_MS = 60000;
-
 const MIN_DISTANCE_M = 50;
-
-interface RateLimitState {
-  lastAcceptedTime: number;
-  consecutiveDrops: number;
-  dropWindowStart: number;
-  bannedUntil: number;
-}
 
 interface ClientData {
   user: WsAuthenticatedUser;
-  subscribedRooms: Set<string>;
   lastProcessedPos?: { lat: number; lng: number };
 }
 
@@ -64,15 +53,15 @@ export class LocationGateway
   server!: Server;
 
   private readonly logger = new Logger(LocationGateway.name);
-  private readonly rooms = new Map<string, Set<WebSocket>>();
   private readonly clientData = new Map<WebSocket, ClientData>();
-  private readonly rateLimits = new Map<WebSocket, RateLimitState>();
 
   constructor(
     private readonly wsAuthService: WsAuthService,
     private readonly locationCache: LocationCacheService,
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly roomManager: RoomManagerService,
+    private readonly rateLimiter: PositionRateLimiterService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -124,13 +113,8 @@ export class LocationGateway
       const origin = request.headers.get('origin') ?? '';
       const user = await this.wsAuthService.verify(token, origin);
 
-      this.clientData.set(client, { user, subscribedRooms: new Set() });
-      this.rateLimits.set(client, {
-        lastAcceptedTime: 0,
-        consecutiveDrops: 0,
-        dropWindowStart: Date.now(),
-        bannedUntil: 0,
-      });
+      this.clientData.set(client, { user });
+      this.rateLimiter.init(client);
 
       this.send(client, 'connected', { userId: user.id, role: user.role });
       await this.autoSubscribe(client, user);
@@ -144,24 +128,15 @@ export class LocationGateway
   async handleDisconnect(client: WebSocket): Promise<void> {
     const data = this.clientData.get(client);
     if (data) {
-      for (const room of data.subscribedRooms) {
-        const members = this.rooms.get(room);
-        if (members) {
-          members.delete(client);
-          if (members.size === 0) this.rooms.delete(room);
-        }
-      }
+      this.roomManager.unsubscribeAll(client);
 
       // Sync last-known position to DB on disconnect.
-      // NOTE: This races with PositionSyncService.syncActivePositions(), which also
-      // writes lastLat/lastLng every 60s. Both write the same data from the same
-      // Redis cache — last-value-wins with identical values, so the race is benign.
       if (data.user.role === 'TECHNICIAN' && data.user.profileId) {
         await this.syncLastPositionToDb(data.user.profileId);
       }
     }
     this.clientData.delete(client);
-    this.rateLimits.delete(client);
+    this.rateLimiter.reset(client);
   }
 
   @SubscribeMessage('position:update')
@@ -179,7 +154,7 @@ export class LocationGateway
       return;
     }
 
-    if (!this.checkPositionRateLimit(client)) return;
+    if (!this.rateLimiter.check(client)) return;
 
     const profileId = data.user.profileId;
     if (!profileId) {
@@ -230,12 +205,16 @@ export class LocationGateway
     data.lastProcessedPos = { lat: dto.lat, lng: dto.lng };
 
     if (dto.orderId) {
-      this.broadcastToRoom(`room:order:${dto.orderId}`, 'technician:position', {
-        technicianId: profileId,
-        lat: dto.lat,
-        lng: dto.lng,
-        timestamp: Date.now(),
-      });
+      this.roomManager.broadcast(
+        `room:order:${dto.orderId}`,
+        'technician:position',
+        {
+          technicianId: profileId,
+          lat: dto.lat,
+          lng: dto.lng,
+          timestamp: Date.now(),
+        },
+      );
     }
   }
 
@@ -259,11 +238,7 @@ export class LocationGateway
       return;
     }
 
-    data.subscribedRooms.add(payload.room);
-    const members = this.rooms.get(payload.room) ?? new Set();
-    members.add(client);
-    this.rooms.set(payload.room, members);
-
+    this.roomManager.subscribe(client, payload.room);
     this.send(client, 'subscribed', { room: payload.room });
   }
 
@@ -275,12 +250,7 @@ export class LocationGateway
     const payload = raw as { room?: string };
     if (!payload?.room || typeof payload.room !== 'string') return;
 
-    data.subscribedRooms.delete(payload.room);
-    const members = this.rooms.get(payload.room);
-    if (members) {
-      members.delete(client);
-      if (members.size === 0) this.rooms.delete(payload.room);
-    }
+    this.roomManager.unsubscribe(client, payload.room);
   }
 
   private async syncLastPositionToDb(technicianId: string): Promise<void> {
@@ -301,43 +271,6 @@ export class LocationGateway
         `Failed to sync position for technician ${technicianId}: ${(err as Error).message}`,
       );
     }
-  }
-
-  private checkPositionRateLimit(client: WebSocket): boolean {
-    const state = this.rateLimits.get(client);
-    if (!state) return false;
-
-    const now = Date.now();
-
-    if (state.bannedUntil > now) return false;
-
-    const timeSinceLastAccept = now - state.lastAcceptedTime;
-
-    if (timeSinceLastAccept < MIN_POSITION_INTERVAL_MS) {
-      state.consecutiveDrops++;
-
-      if (now - state.dropWindowStart > DROP_WINDOW_MS) {
-        state.consecutiveDrops = 1;
-        state.dropWindowStart = now;
-      }
-
-      if (state.consecutiveDrops >= MAX_CONSECUTIVE_DROPS) {
-        state.bannedUntil = now + RATE_LIMIT_BAN_MS;
-        this.logger.warn('WS client rate-limited (too many drops)');
-        client.close(4003, 'Rate limited');
-      }
-
-      return false;
-    }
-
-    state.lastAcceptedTime = now;
-
-    if (now - state.dropWindowStart > DROP_WINDOW_MS) {
-      state.consecutiveDrops = 0;
-      state.dropWindowStart = now;
-    }
-
-    return true;
   }
 
   private haversineDistance(
@@ -416,26 +349,13 @@ export class LocationGateway
         });
         orderIds = orders.map((o) => o.id);
 
-        const data = this.clientData.get(client);
-        if (data) {
-          data.subscribedRooms.add('room:hq:activities');
-          const members = this.rooms.get('room:hq:activities') ?? new Set();
-          members.add(client);
-          this.rooms.set('room:hq:activities', members);
-        }
+        this.roomManager.subscribe(client, 'room:hq:activities');
         break;
       }
     }
 
-    const data = this.clientData.get(client);
-    if (!data) return;
-
     for (const id of orderIds) {
-      const room = `room:order:${id}`;
-      data.subscribedRooms.add(room);
-      const members = this.rooms.get(room) ?? new Set();
-      members.add(client);
-      this.rooms.set(room, members);
+      this.roomManager.subscribe(client, `room:order:${id}`);
     }
   }
 
@@ -491,7 +411,7 @@ export class LocationGateway
         };
 
         if (parsed.orderId) {
-          this.broadcastToRoom(
+          this.roomManager.broadcast(
             `room:order:${parsed.orderId}`,
             'technician:position',
             {
@@ -503,30 +423,16 @@ export class LocationGateway
           );
         }
       } else if (channel === HQ_ACTIVITIES_CHANNEL) {
-        this.broadcastToRoom(
+        this.roomManager.broadcast(
           'room:hq:activities',
           'hq:activity',
           JSON.parse(message) as Record<string, unknown>,
         );
       }
-    } catch {
-      this.logger.warn(`Invalid pub/sub message on channel ${channel}`);
-    }
-  }
-
-  private broadcastToRoom(
-    room: string,
-    event: string,
-    data: Record<string, unknown>,
-  ): void {
-    const members = this.rooms.get(room);
-    if (!members) return;
-
-    const message = JSON.stringify({ event, data });
-    for (const client of members) {
-      if (client.readyState === client.OPEN) {
-        client.send(message);
-      }
+    } catch (err) {
+      this.logger.warn(
+        `Invalid pub/sub message on channel ${channel}: ${(err as Error).message}`,
+      );
     }
   }
 

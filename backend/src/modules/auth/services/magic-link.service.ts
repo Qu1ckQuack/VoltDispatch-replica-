@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { CustomersService } from '../../customers/customers.service.js';
 
@@ -6,6 +6,8 @@ const CUSTOMER_TOKEN_EXPIRY = '15m';
 
 @Injectable()
 export class MagicLinkService {
+  private readonly logger = new Logger(MagicLinkService.name);
+
   constructor(
     private readonly customersService: CustomersService,
     private readonly jwtService: JwtService,
@@ -34,7 +36,8 @@ export class MagicLinkService {
           email: customer.email,
         },
       };
-    } catch {
+    } catch (err) {
+      this.logger.warn(`Magic link auth failed: ${(err as Error).message}`);
       throw new UnauthorizedException('Invalid or expired magic link');
     }
   }

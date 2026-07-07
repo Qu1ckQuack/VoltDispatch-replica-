@@ -1,32 +1,30 @@
-import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../common/prisma.service.js';
+import { ProfileBaseService } from '../common/services/profile-base.service.js';
+import { UsersService } from '../users/users.service.js';
 import { CreateCoordinatorDto } from './dto/create-coordinator.dto.js';
 import { UpdateCoordinatorDto } from './dto/update-coordinator.dto.js';
 
 @Injectable()
-export class CoordinatorsService {
-  constructor(private readonly prisma: PrismaService) {}
+export class CoordinatorsService extends ProfileBaseService {
+  constructor(prisma: PrismaService, usersService: UsersService) {
+    super(prisma, usersService);
+  }
+
+  protected get modelName(): string {
+    return 'coordinator';
+  }
+
+  protected get displayName(): string {
+    return 'Coordinator';
+  }
 
   async findByUserId(userId: string) {
-    const coordinator = await this.prisma.coordinator.findUnique({
-      where: { userId },
-    });
-    if (!coordinator)
-      throw new NotFoundException('Coordinator profile not found');
-    return coordinator;
+    return super.findByUserId(userId) as Promise<{ id: string; userId: string; department: string }>;
   }
 
   async create(dto: CreateCoordinatorDto) {
-    const existing = await this.prisma.coordinator.findUnique({
-      where: { userId: dto.userId },
-    });
-    if (existing)
-      throw new ConflictException('User already has a coordinator profile');
-
+    await this.profileExists(dto.userId);
     return this.prisma.coordinator.create({
       data: dto,
       include: { user: true },
@@ -41,29 +39,15 @@ export class CoordinatorsService {
   }
 
   async findById(id: string) {
-    const coordinator = await this.prisma.coordinator.findUnique({
-      where: { id },
-      include: { user: true },
-    });
-    if (!coordinator) throw new NotFoundException('Coordinator not found');
-    return coordinator;
+    return this.getProfileById(id);
   }
 
   async update(id: string, dto: UpdateCoordinatorDto) {
-    await this.findById(id);
+    await this.getProfileById(id);
     return this.prisma.coordinator.update({
       where: { id },
       data: dto,
       include: { user: true },
     });
-  }
-
-  async remove(id: string) {
-    const coordinator = await this.findById(id);
-    await this.prisma.user.update({
-      where: { id: coordinator.userId },
-      data: { isActive: false },
-    });
-    return { deleted: true };
   }
 }

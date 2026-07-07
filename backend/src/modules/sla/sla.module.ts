@@ -5,5 +5,6 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
 @Module({
   imports: [NotificationsModule],
   providers: [SlaService],
+  exports: [SlaService],
 })
 export class SlaModule {}

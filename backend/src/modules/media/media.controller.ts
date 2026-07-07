@@ -53,7 +53,6 @@ export class MediaController {
         .addMaxSizeValidator({ maxSize: MAX_FILE_SIZE })
         .build({}),
     )
-    @UploadedFile()
     file: Express.Multer.File,
     @CurrentUser() user: AuthenticatedUser,
   ) {

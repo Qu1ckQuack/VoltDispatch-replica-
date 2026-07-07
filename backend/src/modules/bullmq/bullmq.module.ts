@@ -1,6 +1,7 @@
 import { Global, Inject, Module, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Queue, type ConnectionOptions } from 'bullmq';
+import { Queue } from 'bullmq';
+import { buildRedisConnectionOptions } from '../common/utils/redis-connection.js';
 import {
   createNotificationQueue,
   NOTIFICATION_QUEUE_NAME,
@@ -9,21 +10,6 @@ import {
   createSlaTimerQueue,
   SLA_TIMER_QUEUE_NAME,
 } from './queues/sla-timer.queue.js';
-
-export function buildRedisConnectionOptions(
-  config: ConfigService,
-): ConnectionOptions {
-  const restUrl = config.getOrThrow<string>('UPSTASH_REDIS_REST_URL');
-  const token = config.getOrThrow<string>('UPSTASH_REDIS_REST_TOKEN');
-  const host = new URL(restUrl).hostname;
-  return {
-    host,
-    port: 6379,
-    tls: {},
-    password: token,
-    retryStrategy: (times: number) => Math.min(times * 200, 5000),
-  };
-}
 
 @Global()
 @Module({

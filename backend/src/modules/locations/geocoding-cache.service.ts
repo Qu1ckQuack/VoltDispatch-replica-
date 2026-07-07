@@ -30,8 +30,10 @@ export class GeocodingCacheService {
     if (!raw) return null;
     try {
       return JSON.parse(raw) as GeocodingResult;
-    } catch {
-      this.logger.warn(`Invalid geocoding cache data for address: ${address}`);
+    } catch (err) {
+      this.logger.warn(
+        `Invalid geocoding cache data for address: ${address}: ${(err as Error).message}`,
+      );
       return null;
     }
   }
