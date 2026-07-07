@@ -1,8 +1,8 @@
-import type { Metadata } from 'next'
+'use client'
 
-export const metadata: Metadata = {
-  title: 'Settings — VoltDispatch',
-}
+import { ProfileCard } from '@/components/settings/profile-card'
+import { DealerSettings } from '@/components/settings/dealer-settings'
+import { UserManagement } from '@/components/settings/user-management'
 
 export default function SettingsPage() {
   return (
@@ -10,15 +10,13 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-ink-slate">Settings</h1>
         <p className="text-sm text-muted-foreground">
-          Manage system settings
+          Manage your account and system configuration
         </p>
       </div>
 
-      <div className="rounded-xl border border-border bg-white p-6">
-        <p className="text-sm text-muted-foreground">
-          Settings panel will be built next.
-        </p>
-      </div>
+      <ProfileCard />
+      <DealerSettings />
+      <UserManagement />
     </div>
   )
 }

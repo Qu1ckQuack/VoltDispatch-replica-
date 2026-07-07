@@ -2,7 +2,9 @@
 
 import { X } from 'lucide-react'
 import { StatusBadge } from '@/components/queue/status-badge'
-import type { WorkOrder } from '@/lib/api/types'
+import { StatusStepper } from '@/components/shared/status-stepper'
+import type { WorkOrder, WorkOrderStatusHistory } from '@/lib/api/types'
+import { WorkOrderStatus } from '@/lib/api/types'
 
 interface OrderDetailModalProps {
   order: WorkOrder | null
@@ -27,8 +29,17 @@ export function OrderDetailModal({ order, onClose }: OrderDetailModalProps) {
           </button>
         </div>
 
-        <div className="mb-4">
+        <div className="mb-4 flex items-center gap-3">
           <StatusBadge status={order.status} />
+          {order.technician && (
+            <span className="text-xs text-muted-foreground">
+              {order.technician.userId ? `Tech: ${order.technician.userId.slice(0, 8)}` : ''}
+            </span>
+          )}
+        </div>
+
+        <div className="mb-6">
+          <StatusStepper status={order.status} />
         </div>
 
         <div className="grid grid-cols-2 gap-4 text-sm">
@@ -53,7 +64,11 @@ export function OrderDetailModal({ order, onClose }: OrderDetailModalProps) {
           />
           <Field
             label="Technician"
-            value={order.technicianId ? 'Assigned' : 'Unassigned'}
+            value={
+              order.technicianId
+                ? `${order.technician?.userId?.slice(0, 8) || 'Assigned'}`
+                : 'Unassigned'
+            }
           />
           <Field
             label="Department"
@@ -92,27 +107,30 @@ export function OrderDetailModal({ order, onClose }: OrderDetailModalProps) {
         {order.statusHistory && order.statusHistory.length > 0 && (
           <div className="mt-6">
             <h3 className="mb-2 text-sm font-semibold text-ink-slate">
-              Status History
+              Activity Log
             </h3>
             <div className="space-y-2">
               {order.statusHistory.map((h) => (
                 <div
                   key={h.id}
-                  className="flex items-center gap-3 rounded-lg bg-muted/30 px-3 py-2 text-xs"
+                  className="flex items-start gap-3 rounded-lg bg-muted/30 px-3 py-2 text-xs"
                 >
-                  <span className="font-medium text-ink-slate">
-                    {h.fromStatus || '—'}
-                  </span>
-                  <span className="text-muted-foreground">→</span>
-                  <StatusBadge status={h.toStatus} />
-                  <span className="ml-auto text-muted-foreground">
+                  <div className="mt-0.5 shrink-0">
+                    <StatusBadge status={h.toStatus} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-ink-slate">
+                      {formatTransition(h)}
+                    </p>
+                    {h.note && (
+                      <p className="mt-0.5 italic text-muted-foreground">
+                        &quot;{h.note}&quot;
+                      </p>
+                    )}
+                  </div>
+                  <span className="shrink-0 text-muted-foreground">
                     {new Date(h.changedAt).toLocaleString()}
                   </span>
-                  {h.note && (
-                    <span className="ml-2 italic text-muted-foreground">
-                      &quot;{h.note}&quot;
-                    </span>
-                  )}
                 </div>
               ))}
             </div>
@@ -130,6 +148,41 @@ export function OrderDetailModal({ order, onClose }: OrderDetailModalProps) {
       </div>
     </div>
   )
+}
+
+function formatTransition(h: WorkOrderStatusHistory): string {
+  const from = h.fromStatus
+  const to = h.toStatus
+
+  if (!from) {
+    if (to === WorkOrderStatus.REQUESTED) return 'Order created'
+    return `${to}`
+  }
+
+  if (to === WorkOrderStatus.CANCELLED) return 'Cancelled'
+
+  switch (`${from}->${to}`) {
+    case `${WorkOrderStatus.REQUESTED}->${WorkOrderStatus.ASSIGNED}`:
+      return 'Assigned to technician'
+    case `${WorkOrderStatus.ASSIGNED}->${WorkOrderStatus.ACCEPTED}`:
+      return 'Technician accepted the order'
+    case `${WorkOrderStatus.ASSIGNED}->${WorkOrderStatus.RESCHEDULED}`:
+      return 'Appointment rescheduled'
+    case `${WorkOrderStatus.ACCEPTED}->${WorkOrderStatus.EN_ROUTE}`:
+      return 'Technician is en route'
+    case `${WorkOrderStatus.EN_ROUTE}->${WorkOrderStatus.IN_PROGRESS}`:
+      return 'Work started'
+    case `${WorkOrderStatus.IN_PROGRESS}->${WorkOrderStatus.ISSUE}`:
+      return 'Issue reported on site'
+    case `${WorkOrderStatus.ISSUE}->${WorkOrderStatus.ESCALATED}`:
+      return 'Issue escalated'
+    case `${WorkOrderStatus.ISSUE}->${WorkOrderStatus.IN_PROGRESS}`:
+      return 'Issue resolved, work resumed'
+    case `${WorkOrderStatus.IN_PROGRESS}->${WorkOrderStatus.COMPLETED}`:
+      return 'Work completed'
+    default:
+      return `${from} → ${to}`
+  }
 }
 
 function Field({ label, value }: { label: string; value: string }) {

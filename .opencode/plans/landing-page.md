@@ -1,3 +1,16 @@
+# Landing Page — Implementation Plan
+
+## What changes
+
+### 1. Rewrite `src/app/page.tsx` — Branded landing page
+
+Server component with metadata. Shows:
+- Brand name + tagline
+- Feature highlights (3-4 cards with icons)
+- "Sign in" button → `/login`
+- Clean, professional design using brand palette
+
+```tsx
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Wrench, MapPin, Clock, Shield } from 'lucide-react'
@@ -10,6 +23,7 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <div className="flex min-h-screen flex-col">
+      {/* Header */}
       <header className="flex items-center justify-between border-b border-border px-6 py-4">
         <span className="text-xl font-bold text-ink-slate">VoltDispatch</span>
         <Link
@@ -20,6 +34,7 @@ export default function HomePage() {
         </Link>
       </header>
 
+      {/* Hero */}
       <section className="flex flex-1 flex-col items-center justify-center px-6 py-20 text-center">
         <h1 className="max-w-2xl text-4xl font-bold text-ink-slate sm:text-5xl">
           EV Charger Field Service,{' '}
@@ -37,7 +52,8 @@ export default function HomePage() {
         </Link>
       </section>
 
-      <section className="mx-auto grid w-full max-w-5xl gap-6 px-6 pb-20 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Features */}
+      <section className="grid gap-6 px-6 pb-20 sm:grid-cols-2 lg:grid-cols-4 max-w-5xl mx-auto w-full">
         <FeatureCard
           icon={Wrench}
           title="Work Orders"
@@ -60,6 +76,7 @@ export default function HomePage() {
         />
       </section>
 
+      {/* Footer */}
       <footer className="border-t border-border px-6 py-4 text-center text-xs text-muted-foreground">
         VoltDispatch — Technician Management System
       </footer>
@@ -84,3 +101,23 @@ function FeatureCard({
     </div>
   )
 }
+```
+
+### 2. Delete `src/app/(dashboard)/page.tsx`
+
+Remove the redirect — landing page handles `/` directly.
+
+### 3. Update `src/lib/auth/auth-guard.tsx`
+
+Add `'/'` to `PUBLIC_ROUTES` so unauthenticated users see the landing page, and authenticated users get redirected to `/dashboard`.
+
+```ts
+const PUBLIC_ROUTES = ['/login', '/magic-link', '/']
+```
+
+## Implementation order
+1. Rewrite `src/app/page.tsx`
+2. Delete `src/app/(dashboard)/page.tsx`
+3. Update auth-guard PUBLIC_ROUTES
+4. Run `npx tsc --noEmit`
+5. Run `npx next build`
