@@ -50,7 +50,9 @@ export class RatingsService {
 
     const technicianId = workOrder.technicianId;
     if (!technicianId) {
-      throw new BadRequestException('No technician assigned to this work order');
+      throw new BadRequestException(
+        'No technician assigned to this work order',
+      );
     }
 
     try {
@@ -76,7 +78,7 @@ export class RatingsService {
         await tx.technician.update({
           where: { id: technicianId },
           data: {
-            ratingAvg: +((agg._avg.score ?? 0).toFixed(2)),
+            ratingAvg: +(agg._avg.score ?? 0).toFixed(2),
             ratingCount: count,
           },
         });
@@ -86,12 +88,14 @@ export class RatingsService {
 
       return result;
     } catch (err) {
-      if (
-        err instanceof Error &&
-        'code' in err &&
-        (err as { code: string }).code === 'P2002'
-      ) {
-        throw new ConflictException('This work order has already been rated');
+      if (err instanceof Error && 'code' in err) {
+        const prismaErr = err as { code: string };
+        if (prismaErr.code === 'P2002') {
+          throw new ConflictException('This work order has already been rated');
+        }
+        if (prismaErr.code === 'P2025') {
+          throw new NotFoundException('Technician no longer exists');
+        }
       }
       throw err;
     }

@@ -41,9 +41,14 @@ const mockPrismaCustomerFindUnique = jest.fn();
 const mockPrismaDealerFindUnique = jest.fn();
 const mockPrismaWorkOrderFindUniqueWithDealer = jest.fn();
 
-function makeUser(overrides: Partial<{
-  id: string; email: string; role: string; profileId: string | null;
-}> = {}) {
+function makeUser(
+  overrides: Partial<{
+    id: string;
+    email: string;
+    role: string;
+    profileId: string | null;
+  }> = {},
+) {
   return {
     id: overrides.id ?? 'user-1',
     email: overrides.email ?? 'user@test.com',
@@ -52,11 +57,19 @@ function makeUser(overrides: Partial<{
   };
 }
 
-function makeOrder(overrides: Partial<{
-  id: string; status: WorkOrderStatus; customerId: string;
-  technicianId: string | null; dealerId: string; deviceId: string;
-  subDistrict: string; createdAt: Date; updatedAt: Date;
-}> = {}) {
+function makeOrder(
+  overrides: Partial<{
+    id: string;
+    status: WorkOrderStatus;
+    customerId: string;
+    technicianId: string | null;
+    dealerId: string;
+    deviceId: string;
+    subDistrict: string;
+    createdAt: Date;
+    updatedAt: Date;
+  }> = {},
+) {
   return {
     id: overrides.id ?? 'order-1',
     status: overrides.status ?? WorkOrderStatus.REQUESTED,
@@ -153,7 +166,10 @@ describe('WorkOrdersService', () => {
       mockApplyWorkOrderScope.mockResolvedValue({});
       mockPrismaWorkOrderFindFirst.mockResolvedValue(order);
 
-      const result = await service.findById('order-1', makeUser({ role: 'DEALER', profileId: 'dealer-1' }));
+      const result = await service.findById(
+        'order-1',
+        makeUser({ role: 'DEALER', profileId: 'dealer-1' }),
+      );
       expect(result).toEqual(order);
       expect(mockPrismaWorkOrderFindFirst).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: 'order-1' } }),
@@ -165,7 +181,10 @@ describe('WorkOrdersService', () => {
       mockPrismaWorkOrderFindFirst.mockResolvedValue(null);
 
       await expect(
-        service.findById('order-1', makeUser({ role: 'DEALER', profileId: 'dealer-1' })),
+        service.findById(
+          'order-1',
+          makeUser({ role: 'DEALER', profileId: 'dealer-1' }),
+        ),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -177,13 +196,24 @@ describe('WorkOrdersService', () => {
       mockPrismaWorkOrderFindFirst.mockResolvedValue(order);
       mockStateMachineValidate.mockReturnValue(undefined);
       mockPrismaWorkOrderFindUnique.mockResolvedValue(order);
-      mockPrismaWorkOrderUpdate.mockResolvedValue({ ...order, status: WorkOrderStatus.ASSIGNED, technicianId: 'tech-1' });
+      mockPrismaWorkOrderUpdate.mockResolvedValue({
+        ...order,
+        status: WorkOrderStatus.ASSIGNED,
+        technicianId: 'tech-1',
+      });
       mockPrismaStatusHistoryCreate.mockResolvedValue({});
       mockRedisPublish.mockResolvedValue(undefined);
 
-      const result = await service.assign('order-1', { technicianId: 'tech-1' }, makeUser({ role: 'COORDINATOR' }));
+      const result = await service.assign(
+        'order-1',
+        { technicianId: 'tech-1' },
+        makeUser({ role: 'COORDINATOR' }),
+      );
       expect(result.status).toBe(WorkOrderStatus.ASSIGNED);
-      expect(mockStateMachineValidate).toHaveBeenCalledWith(WorkOrderStatus.REQUESTED, WorkOrderStatus.ASSIGNED);
+      expect(mockStateMachineValidate).toHaveBeenCalledWith(
+        WorkOrderStatus.REQUESTED,
+        WorkOrderStatus.ASSIGNED,
+      );
     });
 
     it('rejects invalid transition REQUESTED → EN_ROUTE', async () => {
@@ -191,27 +221,44 @@ describe('WorkOrdersService', () => {
       mockApplyWorkOrderScope.mockResolvedValue({});
       mockPrismaWorkOrderFindFirst.mockResolvedValue(order);
       mockStateMachineValidate.mockImplementation(() => {
-        throw new BadRequestException('Cannot transition from REQUESTED to EN_ROUTE');
+        throw new BadRequestException(
+          'Cannot transition from REQUESTED to EN_ROUTE',
+        );
       });
 
       await expect(
-        service.startTravel('order-1', makeUser({ role: 'TECHNICIAN', profileId: 'tech-1' })),
+        service.startTravel(
+          'order-1',
+          makeUser({ role: 'TECHNICIAN', profileId: 'tech-1' }),
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('sets completedAt on COMPLETED transition', async () => {
-      const order = makeOrder({ status: WorkOrderStatus.IN_PROGRESS, technicianId: 'tech-1' });
+      const order = makeOrder({
+        status: WorkOrderStatus.IN_PROGRESS,
+        technicianId: 'tech-1',
+      });
       mockApplyWorkOrderScope.mockResolvedValue({});
       mockPrismaWorkOrderFindFirst.mockResolvedValue(order);
       mockStateMachineValidate.mockReturnValue(undefined);
       mockPrismaWorkOrderFindUnique.mockResolvedValue(order);
-      const completedOrder = { ...order, status: WorkOrderStatus.COMPLETED, completedAt: new Date() };
+      const completedOrder = {
+        ...order,
+        status: WorkOrderStatus.COMPLETED,
+        completedAt: new Date(),
+      };
       mockPrismaWorkOrderUpdate.mockResolvedValue(completedOrder);
       mockPrismaStatusHistoryCreate.mockResolvedValue({});
       mockRedisPublish.mockResolvedValue(undefined);
-      mockPrismaTechnicianFindUnique.mockResolvedValue({ userId: 'tech-user-1' });
+      mockPrismaTechnicianFindUnique.mockResolvedValue({
+        userId: 'tech-user-1',
+      });
 
-      const result = await service.complete('order-1', makeUser({ role: 'TECHNICIAN', profileId: 'tech-1' }));
+      const result = await service.complete(
+        'order-1',
+        makeUser({ role: 'TECHNICIAN', profileId: 'tech-1' }),
+      );
       expect(result.status).toBe(WorkOrderStatus.COMPLETED);
       expect(mockPrismaWorkOrderUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -222,16 +269,29 @@ describe('WorkOrdersService', () => {
     });
 
     it('publishes activity event to Redis on transition', async () => {
-      const order = makeOrder({ status: WorkOrderStatus.EN_ROUTE, technicianId: 'tech-1' });
+      const order = makeOrder({
+        status: WorkOrderStatus.EN_ROUTE,
+        technicianId: 'tech-1',
+      });
       mockApplyWorkOrderScope.mockResolvedValue({});
       mockPrismaWorkOrderFindFirst.mockResolvedValue(order);
       mockStateMachineValidate.mockReturnValue(undefined);
       mockPrismaWorkOrderFindUnique.mockResolvedValue(order);
-      mockPrismaWorkOrderUpdate.mockResolvedValue({ ...order, status: WorkOrderStatus.IN_PROGRESS });
+      mockPrismaWorkOrderUpdate.mockResolvedValue({
+        ...order,
+        status: WorkOrderStatus.IN_PROGRESS,
+      });
       mockPrismaStatusHistoryCreate.mockResolvedValue({});
       mockRedisPublish.mockResolvedValue(undefined);
 
-      await service.startWork('order-1', makeUser({ role: 'TECHNICIAN', profileId: 'tech-1', email: 'tech@test.com' }));
+      await service.startWork(
+        'order-1',
+        makeUser({
+          role: 'TECHNICIAN',
+          profileId: 'tech-1',
+          email: 'tech@test.com',
+        }),
+      );
 
       expect(mockRedisPublish).toHaveBeenCalledWith(
         'hq:activities',
@@ -245,14 +305,23 @@ describe('WorkOrdersService', () => {
     });
 
     it('handles optimistic concurrency conflict', async () => {
-      const order = makeOrder({ status: WorkOrderStatus.ACCEPTED, technicianId: 'tech-1' });
+      const order = makeOrder({
+        status: WorkOrderStatus.ACCEPTED,
+        technicianId: 'tech-1',
+      });
       mockApplyWorkOrderScope.mockResolvedValue({});
       mockPrismaWorkOrderFindFirst.mockResolvedValue(order);
       mockStateMachineValidate.mockReturnValue(undefined);
-      mockPrismaWorkOrderFindUnique.mockResolvedValue({ ...order, status: WorkOrderStatus.EN_ROUTE });
+      mockPrismaWorkOrderFindUnique.mockResolvedValue({
+        ...order,
+        status: WorkOrderStatus.EN_ROUTE,
+      });
 
       await expect(
-        service.accept('order-1', makeUser({ role: 'TECHNICIAN', profileId: 'tech-1' })),
+        service.accept(
+          'order-1',
+          makeUser({ role: 'TECHNICIAN', profileId: 'tech-1' }),
+        ),
       ).rejects.toThrow('Work order was modified by another request');
     });
   });
@@ -264,11 +333,17 @@ describe('WorkOrdersService', () => {
       mockPrismaWorkOrderFindFirst.mockResolvedValue(order);
       mockStateMachineValidate.mockReturnValue(undefined);
       mockPrismaWorkOrderFindUnique.mockResolvedValue(order);
-      mockPrismaWorkOrderUpdate.mockResolvedValue({ ...order, status: WorkOrderStatus.CANCELLED });
+      mockPrismaWorkOrderUpdate.mockResolvedValue({
+        ...order,
+        status: WorkOrderStatus.CANCELLED,
+      });
       mockPrismaStatusHistoryCreate.mockResolvedValue({});
       mockRedisPublish.mockResolvedValue(undefined);
 
-      const result = await service.cancel('order-1', makeUser({ role: 'DEALER', profileId: 'dealer-1' }));
+      const result = await service.cancel(
+        'order-1',
+        makeUser({ role: 'DEALER', profileId: 'dealer-1' }),
+      );
       expect(result.status).toBe(WorkOrderStatus.CANCELLED);
     });
 
@@ -278,7 +353,10 @@ describe('WorkOrdersService', () => {
       mockPrismaWorkOrderFindFirst.mockResolvedValue(order);
       mockStateMachineValidate.mockReturnValue(undefined);
       mockPrismaWorkOrderFindUnique.mockResolvedValue(order);
-      mockPrismaWorkOrderUpdate.mockResolvedValue({ ...order, status: WorkOrderStatus.CANCELLED });
+      mockPrismaWorkOrderUpdate.mockResolvedValue({
+        ...order,
+        status: WorkOrderStatus.CANCELLED,
+      });
       mockPrismaStatusHistoryCreate.mockResolvedValue({});
       mockRedisPublish.mockResolvedValue(undefined);
 
@@ -287,67 +365,107 @@ describe('WorkOrdersService', () => {
     });
 
     it('allows DEALER to cancel ASSIGNED order', async () => {
-      const order = makeOrder({ status: WorkOrderStatus.ASSIGNED, technicianId: 'tech-1' });
+      const order = makeOrder({
+        status: WorkOrderStatus.ASSIGNED,
+        technicianId: 'tech-1',
+      });
       mockApplyWorkOrderScope.mockResolvedValue({});
       mockPrismaWorkOrderFindFirst.mockResolvedValue(order);
       mockStateMachineValidate.mockReturnValue(undefined);
       mockPrismaWorkOrderFindUnique.mockResolvedValue(order);
-      mockPrismaWorkOrderUpdate.mockResolvedValue({ ...order, status: WorkOrderStatus.CANCELLED });
+      mockPrismaWorkOrderUpdate.mockResolvedValue({
+        ...order,
+        status: WorkOrderStatus.CANCELLED,
+      });
       mockPrismaStatusHistoryCreate.mockResolvedValue({});
       mockRedisPublish.mockResolvedValue(undefined);
 
       await expect(
-        service.cancel('order-1', makeUser({ role: 'DEALER', profileId: 'dealer-1' })),
+        service.cancel(
+          'order-1',
+          makeUser({ role: 'DEALER', profileId: 'dealer-1' }),
+        ),
       ).resolves.toHaveProperty('status', WorkOrderStatus.CANCELLED);
     });
 
     it('allows TECHNICIAN to cancel ASSIGNED order (own)', async () => {
-      const order = makeOrder({ status: WorkOrderStatus.ASSIGNED, technicianId: 'tech-1' });
+      const order = makeOrder({
+        status: WorkOrderStatus.ASSIGNED,
+        technicianId: 'tech-1',
+      });
       mockApplyWorkOrderScope.mockResolvedValue({});
       mockPrismaWorkOrderFindFirst.mockResolvedValue(order);
       mockStateMachineValidate.mockReturnValue(undefined);
       mockPrismaWorkOrderFindUnique.mockResolvedValue(order);
-      mockPrismaWorkOrderUpdate.mockResolvedValue({ ...order, status: WorkOrderStatus.CANCELLED });
+      mockPrismaWorkOrderUpdate.mockResolvedValue({
+        ...order,
+        status: WorkOrderStatus.CANCELLED,
+      });
       mockPrismaStatusHistoryCreate.mockResolvedValue({});
       mockRedisPublish.mockResolvedValue(undefined);
 
       await expect(
-        service.cancel('order-1', makeUser({ role: 'TECHNICIAN', profileId: 'tech-1' })),
+        service.cancel(
+          'order-1',
+          makeUser({ role: 'TECHNICIAN', profileId: 'tech-1' }),
+        ),
       ).resolves.toHaveProperty('status', WorkOrderStatus.CANCELLED);
     });
 
     it('forbids DEALER to cancel ACCEPTED order', async () => {
-      const order = makeOrder({ status: WorkOrderStatus.ACCEPTED, technicianId: 'tech-1' });
+      const order = makeOrder({
+        status: WorkOrderStatus.ACCEPTED,
+        technicianId: 'tech-1',
+      });
       mockApplyWorkOrderScope.mockResolvedValue({});
       mockPrismaWorkOrderFindFirst.mockResolvedValue(order);
 
       await expect(
-        service.cancel('order-1', makeUser({ role: 'DEALER', profileId: 'dealer-1' })),
+        service.cancel(
+          'order-1',
+          makeUser({ role: 'DEALER', profileId: 'dealer-1' }),
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it('allows TECHNICIAN to cancel ACCEPTED order (own)', async () => {
-      const order = makeOrder({ status: WorkOrderStatus.ACCEPTED, technicianId: 'tech-1' });
+      const order = makeOrder({
+        status: WorkOrderStatus.ACCEPTED,
+        technicianId: 'tech-1',
+      });
       mockApplyWorkOrderScope.mockResolvedValue({});
       mockPrismaWorkOrderFindFirst.mockResolvedValue(order);
       mockStateMachineValidate.mockReturnValue(undefined);
       mockPrismaWorkOrderFindUnique.mockResolvedValue(order);
-      mockPrismaWorkOrderUpdate.mockResolvedValue({ ...order, status: WorkOrderStatus.CANCELLED });
+      mockPrismaWorkOrderUpdate.mockResolvedValue({
+        ...order,
+        status: WorkOrderStatus.CANCELLED,
+      });
       mockPrismaStatusHistoryCreate.mockResolvedValue({});
       mockRedisPublish.mockResolvedValue(undefined);
 
       await expect(
-        service.cancel('order-1', makeUser({ role: 'TECHNICIAN', profileId: 'tech-1' })),
+        service.cancel(
+          'order-1',
+          makeUser({ role: 'TECHNICIAN', profileId: 'tech-1' }),
+        ),
       ).resolves.toHaveProperty('status', WorkOrderStatus.CANCELLED);
     });
 
     it('allows CUSTOMER to cancel ACCEPTED order (own)', async () => {
-      const order = makeOrder({ status: WorkOrderStatus.ACCEPTED, customerId: 'cust-1', technicianId: 'tech-1' });
+      const order = makeOrder({
+        status: WorkOrderStatus.ACCEPTED,
+        customerId: 'cust-1',
+        technicianId: 'tech-1',
+      });
       mockApplyWorkOrderScope.mockResolvedValue({});
       mockPrismaWorkOrderFindFirst.mockResolvedValue(order);
       mockStateMachineValidate.mockReturnValue(undefined);
       mockPrismaWorkOrderFindUnique.mockResolvedValue(order);
-      mockPrismaWorkOrderUpdate.mockResolvedValue({ ...order, status: WorkOrderStatus.CANCELLED });
+      mockPrismaWorkOrderUpdate.mockResolvedValue({
+        ...order,
+        status: WorkOrderStatus.CANCELLED,
+      });
       mockPrismaStatusHistoryCreate.mockResolvedValue({});
       mockRedisPublish.mockResolvedValue(undefined);
 
@@ -357,7 +475,11 @@ describe('WorkOrdersService', () => {
     });
 
     it("forbids CUSTOMER to cancel another customer's order", async () => {
-      const order = makeOrder({ status: WorkOrderStatus.ACCEPTED, customerId: 'cust-1', technicianId: 'tech-1' });
+      const order = makeOrder({
+        status: WorkOrderStatus.ACCEPTED,
+        customerId: 'cust-1',
+        technicianId: 'tech-1',
+      });
       mockApplyWorkOrderScope.mockResolvedValue({});
       mockPrismaWorkOrderFindFirst.mockResolvedValue(order);
 
@@ -367,17 +489,26 @@ describe('WorkOrdersService', () => {
     });
 
     it('forbids TECHNICIAN to cancel another technician assigned order', async () => {
-      const order = makeOrder({ status: WorkOrderStatus.ASSIGNED, technicianId: 'tech-2' });
+      const order = makeOrder({
+        status: WorkOrderStatus.ASSIGNED,
+        technicianId: 'tech-2',
+      });
       mockApplyWorkOrderScope.mockResolvedValue({});
       mockPrismaWorkOrderFindFirst.mockResolvedValue(order);
 
       await expect(
-        service.cancel('order-1', makeUser({ role: 'TECHNICIAN', profileId: 'tech-1' })),
+        service.cancel(
+          'order-1',
+          makeUser({ role: 'TECHNICIAN', profileId: 'tech-1' }),
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it('forbids HQ to cancel ACCEPTED order', async () => {
-      const order = makeOrder({ status: WorkOrderStatus.ACCEPTED, technicianId: 'tech-1' });
+      const order = makeOrder({
+        status: WorkOrderStatus.ACCEPTED,
+        technicianId: 'tech-1',
+      });
       mockApplyWorkOrderScope.mockResolvedValue({});
       mockPrismaWorkOrderFindFirst.mockResolvedValue(order);
 

@@ -5,7 +5,12 @@ import {
   OnGatewayDisconnect,
   SubscribeMessage,
 } from '@nestjs/websockets';
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import type { Server, WebSocket } from 'ws';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -72,6 +77,9 @@ export class LocationGateway
 
   async onModuleInit(): Promise<void> {
     const subscriber = this.redis.createSubscriber();
+    subscriber.on('error', (err) => {
+      this.logger.error(`Redis subscriber error: ${err.message}`);
+    });
     subscriber.on('message', (channel, message) => {
       this.handlePubSubMessage(channel, message);
     });

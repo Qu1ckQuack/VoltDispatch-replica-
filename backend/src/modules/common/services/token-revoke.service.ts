@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { RedisService } from '../../redis/redis.service.js';
 
-const REVOKE_TTL_SECONDS = 15 * 60;
+// Must match the maximum JWT lifetime (refresh token = 7d).
+// Tokens longer than this would bypass revocation after expiry.
+const REVOKE_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 @Injectable()
 export class TokenRevokeService {

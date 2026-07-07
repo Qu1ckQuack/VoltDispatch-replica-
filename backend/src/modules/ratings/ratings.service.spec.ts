@@ -140,9 +140,9 @@ describe('RatingsService', () => {
         status: 'COMPLETED',
       });
 
-      await expect(
-        service.create('wo-1', dto, mockCustomer),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.create('wo-1', dto, mockCustomer)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should throw BadRequestException when order not completed', async () => {
@@ -153,9 +153,9 @@ describe('RatingsService', () => {
         status: 'IN_PROGRESS',
       });
 
-      await expect(
-        service.create('wo-1', dto, mockCustomer),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.create('wo-1', dto, mockCustomer)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException when no technician assigned', async () => {
@@ -166,9 +166,9 @@ describe('RatingsService', () => {
         status: 'COMPLETED',
       });
 
-      await expect(
-        service.create('wo-1', dto, mockCustomer),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.create('wo-1', dto, mockCustomer)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw ConflictException on duplicate rating (P2002)', async () => {
@@ -196,9 +196,9 @@ describe('RatingsService', () => {
       (p2002 as any).code = 'P2002';
       mockPrismaRatingCreate.mockRejectedValue(p2002);
 
-      await expect(
-        service.create('wo-1', dto, mockCustomer),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.create('wo-1', dto, mockCustomer)).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 

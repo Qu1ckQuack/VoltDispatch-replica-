@@ -25,9 +25,13 @@ describe('TokenRevokeService', () => {
     service = module.get<TokenRevokeService>(TokenRevokeService);
   });
 
-  it('should revoke a user with 15-minute TTL', async () => {
+  it('should revoke a user with 7-day TTL', async () => {
     await service.revoke('user-1');
-    expect(mockSet).toHaveBeenCalledWith('revoked:user:user-1', '1', 900);
+    expect(mockSet).toHaveBeenCalledWith(
+      'revoked:user:user-1',
+      '1',
+      7 * 24 * 60 * 60,
+    );
   });
 
   it('should return true for revoked user', async () => {

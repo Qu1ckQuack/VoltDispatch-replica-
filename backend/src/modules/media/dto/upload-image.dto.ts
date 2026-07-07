@@ -1,4 +1,4 @@
-import { IsEnum, IsString } from 'class-validator';
+import { IsEnum } from 'class-validator';
 import { ImageType } from '../../../generated/prisma/enums.js';
 
 export class UploadImageDto {

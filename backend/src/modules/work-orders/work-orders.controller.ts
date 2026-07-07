@@ -31,6 +31,7 @@ export class WorkOrdersController {
   }
 
   @Get()
+  @Roles('DEALER', 'HQ', 'COORDINATOR', 'TECHNICIAN', 'CUSTOMER')
   findAll(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query?: WorkOrderQueryDto,
@@ -39,6 +40,7 @@ export class WorkOrdersController {
   }
 
   @Get(':id')
+  @Roles('DEALER', 'HQ', 'COORDINATOR', 'TECHNICIAN', 'CUSTOMER')
   findById(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.workOrdersService.findById(id, user);
   }

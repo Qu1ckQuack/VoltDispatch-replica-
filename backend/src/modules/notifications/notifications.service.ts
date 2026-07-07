@@ -34,14 +34,18 @@ export class NotificationsService {
       const resend = this.moduleRef.get(ResendAdapter, { strict: false });
       if (resend) this.adapters.set(resend.channel, resend);
     } catch {
-      // adapter not registered
+      this.logger.warn(
+        'Resend adapter not registered — EMAIL notifications disabled',
+      );
     }
 
     try {
       const line = this.moduleRef.get(LineAdapter, { strict: false });
       if (line) this.adapters.set(line.channel, line);
     } catch {
-      // adapter not registered
+      this.logger.warn(
+        'Line adapter not registered — LINE notifications disabled',
+      );
     }
   }
 
@@ -76,7 +80,7 @@ export class NotificationsService {
         channel: channel as 'EMAIL' | 'LINE',
         type,
         payload,
-        recipientId: userId ?? customerId ?? '',
+        recipientId: userId ?? customerId ?? 'unknown',
       },
       {
         attempts: 5,

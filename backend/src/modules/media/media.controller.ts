@@ -20,11 +20,7 @@ import { UploadImageDto } from './dto/upload-image.dto.js';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-const ALLOWED_MIMETYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-];
+const ALLOWED_MIMETYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 @Controller('work-orders/:workOrderId/images')
 export class MediaController {
@@ -57,6 +53,7 @@ export class MediaController {
         .addMaxSizeValidator({ maxSize: MAX_FILE_SIZE })
         .build({}),
     )
+    @UploadedFile()
     file: Express.Multer.File,
     @CurrentUser() user: AuthenticatedUser,
   ) {

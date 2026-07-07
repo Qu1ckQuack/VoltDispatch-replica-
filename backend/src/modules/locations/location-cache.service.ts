@@ -78,5 +78,4 @@ export class LocationCacheService {
 
     return map;
   }
-
 }

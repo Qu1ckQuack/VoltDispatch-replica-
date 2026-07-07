@@ -10,15 +10,21 @@ export class ReportingService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getOverview() {
-    const [stats, dailyByStatus, pendingLast7Days, recentlyCompleted, technicianWorkload, recentActivities] =
-      await Promise.all([
-        this.getStats(),
-        this.getDailyByStatusRaw(),
-        this.getPendingLast7Days(),
-        this.getRecentlyCompleted(),
-        this.getTechnicianWorkload(),
-        this.getRecentActivities(),
-      ]);
+    const [
+      stats,
+      dailyByStatus,
+      pendingLast7Days,
+      recentlyCompleted,
+      technicianWorkload,
+      recentActivities,
+    ] = await Promise.all([
+      this.getStats(),
+      this.getDailyByStatusRaw(),
+      this.getPendingLast7Days(),
+      this.getRecentlyCompleted(),
+      this.getTechnicianWorkload(),
+      this.getRecentActivities(),
+    ]);
 
     return {
       stats,
@@ -31,12 +37,14 @@ export class ReportingService {
   }
 
   private async getStats() {
-    const rows = await this.prisma.$queryRaw<{
-      total_orders: bigint;
-      pending_orders: bigint;
-      in_process_orders: bigint;
-      completed_orders: bigint;
-    }[]>`
+    const rows = await this.prisma.$queryRaw<
+      {
+        total_orders: bigint;
+        pending_orders: bigint;
+        in_process_orders: bigint;
+        completed_orders: bigint;
+      }[]
+    >`
       SELECT
         (SELECT COUNT(*)::bigint FROM work_orders) AS total_orders,
         (SELECT COUNT(*)::bigint FROM work_orders WHERE status IN ('REQUESTED','ASSIGNED','ACCEPTED')) AS pending_orders,
@@ -52,10 +60,12 @@ export class ReportingService {
   }
 
   private async getDailyByStatusRaw() {
-    const rows = await this.prisma.$queryRaw<{
-      status: string;
-      count: bigint;
-    }[]>`
+    const rows = await this.prisma.$queryRaw<
+      {
+        status: string;
+        count: bigint;
+      }[]
+    >`
       SELECT status::text, COUNT(*)::bigint AS count
       FROM work_orders
       WHERE created_at::date = CURRENT_DATE
@@ -97,11 +107,13 @@ export class ReportingService {
   }
 
   private async getTechnicianWorkload() {
-    const rows = await this.prisma.$queryRaw<{
-      technician_id: string;
-      name: string;
-      assigned_count: bigint;
-    }[]>`
+    const rows = await this.prisma.$queryRaw<
+      {
+        technician_id: string;
+        name: string;
+        assigned_count: bigint;
+      }[]
+    >`
       SELECT wo.technician_id, u.name, COUNT(*)::bigint AS assigned_count
       FROM work_orders wo
       JOIN technicians t ON t.id = wo.technician_id
@@ -119,14 +131,16 @@ export class ReportingService {
   }
 
   private async getRecentActivities() {
-    const rows = await this.prisma.$queryRaw<{
-      id: string;
-      work_order_id: string;
-      from_status: string | null;
-      to_status: string;
-      changed_by: string | null;
-      changed_at: Date;
-    }[]>`
+    const rows = await this.prisma.$queryRaw<
+      {
+        id: string;
+        work_order_id: string;
+        from_status: string | null;
+        to_status: string;
+        changed_by: string | null;
+        changed_at: Date;
+      }[]
+    >`
       SELECT
         h.id,
         h.work_order_id,
@@ -152,24 +166,30 @@ export class ReportingService {
   async getSummary(query: SummaryQueryDto) {
     const periodInterval = this.buildPeriodInterval(query.period);
 
-    const rows = await this.prisma.$queryRaw<{
-      total_completed: bigint;
-      avg_processing_hours: number | null;
-      on_time_rate: number | null;
-      avg_rating: number | null;
-      growth_trend: { month: string; completed_count: bigint }[] | null;
-      top_dealers: { dealer_id: string; company_name: string; order_count: bigint }[] | null;
-      popular_chargers: { model: string; count: bigint }[] | null;
-      dealer_summary: {
-        dealer_name: string;
-        total_orders: bigint;
-        completed: bigint;
-        issues: bigint;
-        avg_time: number | null;
+    const rows = await this.prisma.$queryRaw<
+      {
+        total_completed: bigint;
+        avg_processing_hours: number | null;
+        on_time_rate: number | null;
         avg_rating: number | null;
-        sla_percent: number | null;
-      }[] | null;
-    }[]>`
+        growth_trend: { month: string; completed_count: bigint }[] | null;
+        top_dealers:
+          | { dealer_id: string; company_name: string; order_count: bigint }[]
+          | null;
+        popular_chargers: { model: string; count: bigint }[] | null;
+        dealer_summary:
+          | {
+              dealer_name: string;
+              total_orders: bigint;
+              completed: bigint;
+              issues: bigint;
+              avg_time: number | null;
+              avg_rating: number | null;
+              sla_percent: number | null;
+            }[]
+          | null;
+      }[]
+    >`
       WITH filtered AS (
         SELECT * FROM work_orders
         WHERE completed_at IS NOT NULL
@@ -234,7 +254,9 @@ export class ReportingService {
     return {
       metrics: {
         totalCompleted: Number(row.total_completed),
-        avgProcessingHours: row.avg_processing_hours ? Number(row.avg_processing_hours.toFixed(2)) : 0,
+        avgProcessingHours: row.avg_processing_hours
+          ? Number(row.avg_processing_hours.toFixed(2))
+          : 0,
         onTimeRate: row.on_time_rate ? Number(row.on_time_rate) : 0,
         avgRatingScore: row.avg_rating ? Number(row.avg_rating) : 0,
       },
@@ -266,13 +288,15 @@ export class ReportingService {
   async search(query: string) {
     const keyword = `%${query}%`;
 
-    const rows = await this.prisma.$queryRaw<{
-      id: string;
-      status: string;
-      dealer_name: string | null;
-      technician_name: string | null;
-      created_at: Date;
-    }[]>`
+    const rows = await this.prisma.$queryRaw<
+      {
+        id: string;
+        status: string;
+        dealer_name: string | null;
+        technician_name: string | null;
+        created_at: Date;
+      }[]
+    >`
       SELECT wo.id, wo.status::text, d.company_name AS dealer_name,
              u.name AS technician_name, wo.created_at
       FROM work_orders wo

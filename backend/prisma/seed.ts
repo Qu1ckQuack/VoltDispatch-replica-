@@ -27,7 +27,9 @@ async function main() {
     },
   });
 
-  console.log('Seed complete: HQ user created (hq@voltdispatch.app / password123)');
+  console.log(
+    'Seed·complete:·HQ·user·created·(hq@voltdispatch.app·/·password123',
+  );
 }
 
 main()

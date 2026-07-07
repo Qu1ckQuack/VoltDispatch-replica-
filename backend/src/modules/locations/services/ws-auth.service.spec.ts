@@ -7,7 +7,6 @@ import { TokenRevokeService } from '../../common/services/token-revoke.service.j
 
 describe('WsAuthService', () => {
   let service: WsAuthService;
-  let jwtService: JwtService;
 
   const mockJwtVerify = jest.fn();
   const mockConfigGet = jest.fn();
@@ -37,7 +36,6 @@ describe('WsAuthService', () => {
     }).compile();
 
     service = module.get<WsAuthService>(WsAuthService);
-    jwtService = module.get<JwtService>(JwtService);
   });
 
   it('should verify a valid access token', async () => {
@@ -51,10 +49,7 @@ describe('WsAuthService', () => {
     });
     mockIsRevoked.mockResolvedValue(false);
 
-    const user = await service.verify(
-      'valid-token',
-      'http://localhost:3000',
-    );
+    const user = await service.verify('valid-token', 'http://localhost:3000');
 
     expect(user.id).toBe('user-1');
     expect(user.role).toBe('TECHNICIAN');
@@ -64,9 +59,9 @@ describe('WsAuthService', () => {
   it('should reject request from disallowed origin', async () => {
     mockConfigGet.mockReturnValue('http://localhost:3000');
 
-    await expect(
-      service.verify('token', 'http://evil.com'),
-    ).rejects.toThrow(UnauthorizedException);
+    await expect(service.verify('token', 'http://evil.com')).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
   it('should verify a customer token', async () => {
@@ -79,10 +74,7 @@ describe('WsAuthService', () => {
       name: 'John',
     });
 
-    const user = await service.verify(
-      'cust-token',
-      'http://localhost:3000',
-    );
+    const user = await service.verify('cust-token', 'http://localhost:3000');
 
     expect(user.id).toBe('cust-1');
     expect(user.role).toBe('CUSTOMER');
@@ -140,10 +132,7 @@ describe('WsAuthService', () => {
     });
     mockIsRevoked.mockResolvedValue(false);
 
-    const user = await service.verify(
-      'token',
-      'http://any-origin.com',
-    );
+    const user = await service.verify('token', 'http://any-origin.com');
 
     expect(user.id).toBe('user-1');
   });

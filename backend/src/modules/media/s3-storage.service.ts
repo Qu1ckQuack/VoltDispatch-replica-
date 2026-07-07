@@ -26,7 +26,10 @@ export class S3StorageService {
 
   constructor(private readonly configService: ConfigService) {
     this.bucket = this.configService.getOrThrow<string>('AWS_S3_BUCKET');
-    this.region = this.configService.get<string>('AWS_REGION', 'ap-southeast-1');
+    this.region = this.configService.get<string>(
+      'AWS_REGION',
+      'ap-southeast-1',
+    );
     this.client = new S3Client({ region: this.region });
   }
 

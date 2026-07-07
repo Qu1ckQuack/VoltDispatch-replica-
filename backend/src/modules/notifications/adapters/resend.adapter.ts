@@ -14,7 +14,10 @@ export class ResendAdapter implements NotificationAdapter {
 
   constructor(config: ConfigService) {
     this.apiKey = config.get<string>('RESEND_API_KEY', '');
-    this.fromAddress = config.get<string>('EMAIL_FROM', 'notifications@voltdispatch.app');
+    this.fromAddress = config.get<string>(
+      'EMAIL_FROM',
+      'notifications@voltdispatch.app',
+    );
   }
 
   async send(

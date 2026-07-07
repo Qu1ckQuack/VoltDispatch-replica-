@@ -38,9 +38,7 @@ export class MediaService {
     if (user.role === 'TECHNICIAN') {
       const techProfileId = user.profileId;
       if (!techProfileId || workOrder.technicianId !== techProfileId) {
-        throw new ForbiddenException(
-          'You are not assigned to this work order',
-        );
+        throw new ForbiddenException('You are not assigned to this work order');
       }
     }
 
@@ -84,11 +82,7 @@ export class MediaService {
     return signed;
   }
 
-  async delete(
-    workOrderId: string,
-    imageId: string,
-    user: AuthenticatedUser,
-  ) {
+  async delete(workOrderId: string, imageId: string, user: AuthenticatedUser) {
     const scope = await this.scopingService.applyWorkOrderScope(user);
     const workOrder = await this.prisma.workOrder.findFirst({
       where: { id: workOrderId, ...scope },

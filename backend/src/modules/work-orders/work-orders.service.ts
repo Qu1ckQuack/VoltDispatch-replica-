@@ -114,7 +114,14 @@ export class WorkOrdersService {
     return order;
   }
 
-  async transition({ id, toStatus, user, note, extraData, existingOrder }: TransitionOpts) {
+  async transition({
+    id,
+    toStatus,
+    user,
+    note,
+    extraData,
+    existingOrder,
+  }: TransitionOpts) {
     const order = existingOrder ?? (await this.findById(id, user));
 
     this.stateMachine.validate(order.status, toStatus);

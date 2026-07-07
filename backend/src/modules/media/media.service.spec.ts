@@ -161,8 +161,18 @@ describe('MediaService', () => {
       mockApplyWorkOrderScope.mockResolvedValue({ department: 'north' });
       mockPrismaWorkOrderFindFirst.mockResolvedValue({ id: 'wo-1' });
       mockPrismaWorkOrderImageFindMany.mockResolvedValue([
-        { id: 'img-1', workOrderId: 'wo-1', type: 'BEFORE', url: 'work-orders/wo-1/a.jpg' },
-        { id: 'img-2', workOrderId: 'wo-1', type: 'AFTER', url: 'work-orders/wo-1/b.jpg' },
+        {
+          id: 'img-1',
+          workOrderId: 'wo-1',
+          type: 'BEFORE',
+          url: 'work-orders/wo-1/a.jpg',
+        },
+        {
+          id: 'img-2',
+          workOrderId: 'wo-1',
+          type: 'AFTER',
+          url: 'work-orders/wo-1/b.jpg',
+        },
       ]);
       mockS3GetSignedUrl
         .mockResolvedValueOnce('https://signed-url/a.jpg?X-Amz-Signature=a')
@@ -223,9 +233,9 @@ describe('MediaService', () => {
         uploadedBy: 'user-other',
       });
 
-      await expect(
-        service.delete('wo-1', 'img-1', mockUser),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.delete('wo-1', 'img-1', mockUser)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should allow HQ to delete any image', async () => {
@@ -264,9 +274,9 @@ describe('MediaService', () => {
         uploadedBy: 'user-1',
       });
 
-      await expect(
-        service.delete('wo-1', 'img-1', mockUser),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.delete('wo-1', 'img-1', mockUser)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

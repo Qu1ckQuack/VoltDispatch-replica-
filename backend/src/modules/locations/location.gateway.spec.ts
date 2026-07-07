@@ -88,6 +88,7 @@ describe('LocationGateway', () => {
     }).compile();
 
     gateway = module.get<LocationGateway>(LocationGateway);
+    // avoid unsafe `any` member access in tests
     (gateway as any).server = {};
 
     await gateway.onModuleInit();
@@ -193,9 +194,9 @@ describe('LocationGateway', () => {
       ]);
       await gateway.handleConnection(client, request);
 
-      expect(
-        (gateway as any).clientData.get(client).subscribedRooms.size,
-      ).toBe(3);
+      expect((gateway as any).clientData.get(client).subscribedRooms.size).toBe(
+        3,
+      );
 
       await gateway.handleDisconnect(client);
 
@@ -372,9 +373,9 @@ describe('LocationGateway', () => {
         expect.stringContaining('"subscribed"'),
       );
       expect(
-        (gateway as any).clientData.get(client).subscribedRooms.has(
-          'room:order:order-1',
-        ),
+        (gateway as any).clientData
+          .get(client)
+          .subscribedRooms.has('room:order:order-1'),
       ).toBe(true);
     });
 
@@ -442,15 +443,15 @@ describe('LocationGateway', () => {
       await gateway.handleConnection(client, request);
 
       await gateway.handleSubscribe(client, { room: 'room:order:order-1' });
-      expect(
-        (gateway as any).clientData.get(client).subscribedRooms.size,
-      ).toBe(2);
+      expect((gateway as any).clientData.get(client).subscribedRooms.size).toBe(
+        2,
+      );
 
       gateway.handleUnsubscribe(client, { room: 'room:order:order-1' });
 
-      expect(
-        (gateway as any).clientData.get(client).subscribedRooms.size,
-      ).toBe(1);
+      expect((gateway as any).clientData.get(client).subscribedRooms.size).toBe(
+        1,
+      );
     });
   });
 });

@@ -6,6 +6,7 @@ import {
   Delete,
   Param,
   Body,
+  BadRequestException,
 } from '@nestjs/common';
 import { TechniciansService } from './technicians.service.js';
 import { CreateTechnicianDto } from './dto/create-technician.dto.js';
@@ -55,6 +56,11 @@ export class TechniciansController {
     @Body() dto: UpdateStatusDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.techniciansService.updateStatus(user.profileId!, dto);
+    if (!user.profileId) {
+      throw new BadRequestException(
+        'No technician profile linked to this user',
+      );
+    }
+    return this.techniciansService.updateStatus(user.profileId, dto);
   }
 }
