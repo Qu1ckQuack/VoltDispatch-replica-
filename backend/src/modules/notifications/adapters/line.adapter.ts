@@ -48,6 +48,12 @@ export class LineAdapter implements NotificationAdapter {
 
       if (!response.ok) {
         const errBody = await response.text();
+        if (response.status === 429) {
+          const retryAfter = response.headers.get('Retry-After');
+          this.logger.warn(
+            `LINE API rate limited (429). Retry-After: ${retryAfter ?? 'unspecified'}`,
+          );
+        }
         throw new Error(`LINE API error ${response.status}: ${errBody}`);
       }
 

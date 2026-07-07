@@ -10,9 +10,11 @@ export class ResendAdapter implements NotificationAdapter {
   readonly channel = 'EMAIL' as const;
   private readonly logger = new Logger(ResendAdapter.name);
   private readonly apiKey: string;
+  private readonly fromAddress: string;
 
   constructor(config: ConfigService) {
     this.apiKey = config.get<string>('RESEND_API_KEY', '');
+    this.fromAddress = config.get<string>('EMAIL_FROM', 'notifications@voltdispatch.app');
   }
 
   async send(
@@ -33,7 +35,7 @@ export class ResendAdapter implements NotificationAdapter {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: 'VoltDispatch <notifications@voltdispatch.app>',
+          from: `VoltDispatch <${this.fromAddress}>`,
           to: [recipient],
           subject,
           text: body,

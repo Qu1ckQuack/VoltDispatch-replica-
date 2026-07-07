@@ -4,6 +4,7 @@ import { RedisService } from '../redis/redis.service.js';
 
 const mockSetex = jest.fn<Promise<string>, [string, number, string]>();
 const mockGet = jest.fn<Promise<string | null>, [string]>();
+const mockMget = jest.fn<Promise<(string | null)[]>, [string[]]>();
 const mockSadd = jest.fn<Promise<number>, [string, string]>();
 const mockSmembers = jest.fn<Promise<string[]>, [string]>();
 
@@ -25,6 +26,7 @@ describe('LocationCacheService', () => {
             getClient: jest.fn(() => ({
               setex: mockSetex,
               get: mockGet,
+              mget: mockMget,
               sadd: mockSadd,
               smembers: mockSmembers,
             })),
@@ -89,20 +91,30 @@ describe('LocationCacheService', () => {
     expect(mockSmembers).toHaveBeenCalledWith('location:active:techs');
   });
 
-  it('should get active positions for all active techs', async () => {
+  it('should return empty map when no active techs', async () => {
+    mockSmembers.mockResolvedValue([]);
+
+    const positions = await service.getActivePositions();
+
+    expect(positions.size).toBe(0);
+    expect(mockMget).not.toHaveBeenCalled();
+  });
+
+  it('should get active positions for all active techs via MGET', async () => {
     mockSmembers.mockResolvedValue(['tech-1', 'tech-2']);
-    mockGet
-      .mockResolvedValueOnce(
-        JSON.stringify({ lat: 13.756, lng: 100.501, timestamp: 1000 }),
-      )
-      .mockResolvedValueOnce(
-        JSON.stringify({ lat: 13.757, lng: 100.502, timestamp: 2000 }),
-      );
+    mockMget.mockResolvedValue([
+      JSON.stringify({ lat: 13.756, lng: 100.501, timestamp: 1000 }),
+      JSON.stringify({ lat: 13.757, lng: 100.502, timestamp: 2000 }),
+    ]);
 
     const positions = await service.getActivePositions();
 
     expect(positions.size).toBe(2);
     expect(positions.get('tech-1')!.lat).toBe(13.756);
     expect(positions.get('tech-2')!.lat).toBe(13.757);
+    expect(mockMget).toHaveBeenCalledWith(
+      'location:tech:tech-1',
+      'location:tech:tech-2',
+    );
   });
 });

@@ -127,7 +127,7 @@ export class WorkOrdersController {
   }
 
   @Patch(':id/cancel')
-  @Roles('DEALER')
+  @Roles('DEALER', 'HQ', 'TECHNICIAN', 'CUSTOMER')
   cancel(
     @Param('id') id: string,
     @Body() dto: TransitionNoteDto,

@@ -291,6 +291,7 @@ model WorkOrder {
   appointmentDate DateTime?       @map("appointment_date")
   department      String?         // Coordinator scoping — set at creation by dealer; nullable so non-department workflows aren't forced to adopt it
   subDistrict     String          @map("sub_district") // denormalized by design — see note above
+  completedAt     DateTime?       @map("completed_at") // set on transition to COMPLETED — used for reporting queries
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
@@ -306,6 +307,10 @@ model WorkOrder {
   @@index([technicianId]) // Technician's "my upcoming work orders" view
   @@index([subDistrict, status]) // Coordinator queue: unassigned/active orders by area
   @@index([slaDeadline]) // HQ SLA breach scan — see partial-index note below
+  @@index([status, updatedAt]) // HQ reporting: recently completed / pending order panels
+  @@index([status, createdAt]) // HQ reporting: pending last 7 days, daily by status
+  @@index([status, technicianId]) // HQ reporting: technician workload (non-terminal)
+  @@index([completedAt]) // HQ reporting: summary period filter
   @@map("work_orders")
 }
 
@@ -381,6 +386,7 @@ model Rating {
   customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Restrict)
   technician Technician @relation(fields: [technicianId], references: [id], onDelete: Restrict)
 
+  @@index([technicianId])
   @@map("ratings")
 }
 

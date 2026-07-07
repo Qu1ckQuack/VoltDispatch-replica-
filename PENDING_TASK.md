@@ -1,17 +1,13 @@
 # Pending Tasks
 
-_Auto-synced every 30s — last write: 2026-07-06T09:34:37.865Z_
+_Auto-synced every 30s — last write: 2026-07-07T04:19:41.235Z_
 
-## Session `ses_0c9aa1da0ffeSU6RlT6WM3gWDs`
+## Session `ses_0c59a7f0fffe7TKQg1g187tVFN`
 
-- [x] Fix BullmqModule.onModuleDestroy — close injected queues instead of creating new ones
-- [x] Fix LINE notification — send actual LINE userId, not email
-- [x] Fix SLA warnings — enqueue via NotificationsService, not raw queue + synthetic IDs
-- [x] Extract buildConnectionOptions into shared helper (DRY)
-- [x] Stop SlaService from creating its own Worker — add proper cleanup
-- [x] Fix DEALER scoping fallback in ScopingService
-- [x] Fix WorkOrdersService.findById — apply scope in WHERE clause, not post-fetch
-- [x] Fix RESCHEDULED to use transition() for concurrency check
-- [x] Add Customer.lineUserId to schema + LINE recipient resolution
-- [x] Add missing notifications for ACCEPTED, IN_PROGRESS, RESCHEDULED states
-- [x] Verify compilation succeeds
+- [x] Create prisma/seed.ts with HQ user
+- [x] Run migration: add_completed_at
+- [x] Add OnModuleDestroy to NotificationWorker
+- [x] Optimize getActivePositions with MGET
+- [x] Add 429 detection to LINE adapter
+- [x] Document position sync race in comments
+- [x] Validation: tests + tsc + prisma validate

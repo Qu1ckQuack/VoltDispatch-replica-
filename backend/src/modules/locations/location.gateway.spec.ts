@@ -195,7 +195,7 @@ describe('LocationGateway', () => {
 
       expect(
         (gateway as any).clientData.get(client).subscribedRooms.size,
-      ).toBe(2);
+      ).toBe(3);
 
       await gateway.handleDisconnect(client);
 
@@ -444,13 +444,13 @@ describe('LocationGateway', () => {
       await gateway.handleSubscribe(client, { room: 'room:order:order-1' });
       expect(
         (gateway as any).clientData.get(client).subscribedRooms.size,
-      ).toBe(1);
+      ).toBe(2);
 
       gateway.handleUnsubscribe(client, { room: 'room:order:order-1' });
 
       expect(
         (gateway as any).clientData.get(client).subscribedRooms.size,
-      ).toBe(0);
+      ).toBe(1);
     });
   });
 });

@@ -60,6 +60,8 @@ export class ScopingService {
         });
         return tech ? { technicianId: tech.id } : { technicianId: 'none' };
       }
+      case 'CUSTOMER':
+        return { customerId: user.id };
       default:
         this.logger.warn(`Unknown role for scoping: ${user.role}`);
         return {};

@@ -19,6 +19,8 @@ import { BullmqModule } from './modules/bullmq/bullmq.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { SlaModule } from './modules/sla/sla.module.js';
 import { MediaModule } from './modules/media/media.module.js';
+import { RatingsModule } from './modules/ratings/ratings.module.js';
+import { ReportingModule } from './modules/reporting/reporting.module.js';
 
 @Module({
   imports: [
@@ -48,6 +50,8 @@ import { MediaModule } from './modules/media/media.module.js';
     NotificationsModule,
     SlaModule,
     MediaModule,
+    RatingsModule,
+    ReportingModule,
   ],
   controllers: [AppController],
   providers: [

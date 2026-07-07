@@ -20,6 +20,7 @@ import { RedisService } from '../redis/redis.service.js';
 import { WorkOrderStatus } from '../../generated/prisma/enums.js';
 
 const LOCATION_UPDATES_CHANNEL = 'location:updates';
+const HQ_ACTIVITIES_CHANNEL = 'hq:activities';
 
 const MIN_POSITION_INTERVAL_MS = 5000;
 const MAX_CONSECUTIVE_DROPS = 10;
@@ -71,17 +72,20 @@ export class LocationGateway
 
   async onModuleInit(): Promise<void> {
     const subscriber = this.redis.createSubscriber();
-    subscriber.on('message', (_channel, message) => {
-      this.handlePubSubMessage(message);
+    subscriber.on('message', (channel, message) => {
+      this.handlePubSubMessage(channel, message);
     });
     try {
-      await subscriber.subscribe(LOCATION_UPDATES_CHANNEL);
+      await Promise.all([
+        subscriber.subscribe(LOCATION_UPDATES_CHANNEL),
+        subscriber.subscribe(HQ_ACTIVITIES_CHANNEL),
+      ]);
       this.logger.log(
-        `Subscribed to Redis channel ${LOCATION_UPDATES_CHANNEL}`,
+        `Subscribed to Redis channels: ${LOCATION_UPDATES_CHANNEL}, ${HQ_ACTIVITIES_CHANNEL}`,
       );
     } catch (err) {
       this.logger.error(
-        `Failed to subscribe to ${LOCATION_UPDATES_CHANNEL}: ${(err as Error).message}`,
+        `Failed to subscribe to Redis channels: ${(err as Error).message}`,
       );
     }
   }
@@ -140,6 +144,10 @@ export class LocationGateway
         }
       }
 
+      // Sync last-known position to DB on disconnect.
+      // NOTE: This races with PositionSyncService.syncActivePositions(), which also
+      // writes lastLat/lastLng every 60s. Both write the same data from the same
+      // Redis cache — last-value-wins with identical values, so the race is benign.
       if (data.user.role === 'TECHNICIAN' && data.user.profileId) {
         await this.syncLastPositionToDb(data.user.profileId);
       }
@@ -399,6 +407,14 @@ export class LocationGateway
           take: 50,
         });
         orderIds = orders.map((o) => o.id);
+
+        const data = this.clientData.get(client);
+        if (data) {
+          data.subscribedRooms.add('room:hq:activities');
+          const members = this.rooms.get('room:hq:activities') ?? new Set();
+          members.add(client);
+          this.rooms.set('room:hq:activities', members);
+        }
         break;
       }
     }
@@ -455,30 +471,38 @@ export class LocationGateway
     }
   }
 
-  private handlePubSubMessage(message: string): void {
+  private handlePubSubMessage(channel: string, message: string): void {
     try {
-      const parsed = JSON.parse(message) as {
-        technicianId: string;
-        lat: number;
-        lng: number;
-        timestamp: number;
-        orderId?: string;
-      };
+      if (channel === LOCATION_UPDATES_CHANNEL) {
+        const parsed = JSON.parse(message) as {
+          technicianId: string;
+          lat: number;
+          lng: number;
+          timestamp: number;
+          orderId?: string;
+        };
 
-      if (parsed.orderId) {
+        if (parsed.orderId) {
+          this.broadcastToRoom(
+            `room:order:${parsed.orderId}`,
+            'technician:position',
+            {
+              technicianId: parsed.technicianId,
+              lat: parsed.lat,
+              lng: parsed.lng,
+              timestamp: parsed.timestamp,
+            },
+          );
+        }
+      } else if (channel === HQ_ACTIVITIES_CHANNEL) {
         this.broadcastToRoom(
-          `room:order:${parsed.orderId}`,
-          'technician:position',
-          {
-            technicianId: parsed.technicianId,
-            lat: parsed.lat,
-            lng: parsed.lng,
-            timestamp: parsed.timestamp,
-          },
+          'room:hq:activities',
+          'hq:activity',
+          JSON.parse(message) as Record<string, unknown>,
         );
       }
     } catch {
-      this.logger.warn('Invalid pub/sub message received');
+      this.logger.warn(`Invalid pub/sub message on channel ${channel}`);
     }
   }
 

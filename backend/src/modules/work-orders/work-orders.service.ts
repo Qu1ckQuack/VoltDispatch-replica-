@@ -12,6 +12,7 @@ import {
 } from '../common/services/scoping.service.js';
 import { StateMachineService } from './services/state-machine.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { RedisService } from '../redis/redis.service.js';
 import {
   WorkOrderStatus,
   NotificationChannel,
@@ -21,12 +22,26 @@ import { AssignWorkOrderDto } from './dto/assign-work-order.dto.js';
 import { RescheduleWorkOrderDto } from './dto/reschedule-work-order.dto.js';
 import type { WorkOrderQueryDto } from './dto/work-order-query.dto.js';
 
+const ACTIVITIES_CHANNEL = 'hq:activities';
+
+const CANCEL_RULES: Partial<Record<WorkOrderStatus, string[]>> = {
+  [WorkOrderStatus.REQUESTED]: ['DEALER', 'HQ'],
+  [WorkOrderStatus.ASSIGNED]: ['DEALER', 'HQ', 'TECHNICIAN'],
+  [WorkOrderStatus.ACCEPTED]: ['TECHNICIAN', 'CUSTOMER'],
+};
+
 interface TransitionOpts {
   id: string;
   toStatus: WorkOrderStatus;
   user: AuthenticatedUser;
   note?: string | null;
   extraData?: Record<string, unknown>;
+  existingOrder?: {
+    id: string;
+    status: WorkOrderStatus;
+    customerId: string;
+    technicianId: string | null;
+  };
 }
 
 @Injectable()
@@ -38,6 +53,7 @@ export class WorkOrdersService {
     private readonly scopingService: ScopingService,
     private readonly stateMachine: StateMachineService,
     private readonly notificationsService: NotificationsService,
+    private readonly redis: RedisService,
   ) {}
 
   async create(dto: CreateWorkOrderDto, user: AuthenticatedUser) {
@@ -98,14 +114,16 @@ export class WorkOrdersService {
     return order;
   }
 
-  async transition({ id, toStatus, user, note, extraData }: TransitionOpts) {
-    const order = await this.findById(id, user);
+  async transition({ id, toStatus, user, note, extraData, existingOrder }: TransitionOpts) {
+    const order = existingOrder ?? (await this.findById(id, user));
 
     this.stateMachine.validate(order.status, toStatus);
 
     const isDecline =
       order.status === WorkOrderStatus.ASSIGNED &&
       toStatus === WorkOrderStatus.REQUESTED;
+
+    const isComplete = toStatus === WorkOrderStatus.COMPLETED;
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const current = await tx.workOrder.findUnique({ where: { id } });
@@ -130,6 +148,7 @@ export class WorkOrdersService {
         data: {
           status: toStatus,
           technicianId: isDecline ? null : undefined,
+          completedAt: isComplete ? new Date() : undefined,
           ...extraData,
         },
         include: { customer: true, device: true, technician: true },
@@ -137,6 +156,18 @@ export class WorkOrdersService {
     });
 
     await this.notifyStatusChange(updated, order.status, toStatus);
+
+    await this.redis.publish(
+      ACTIVITIES_CHANNEL,
+      JSON.stringify({
+        type: 'status_change',
+        orderId: updated.id,
+        fromStatus: order.status,
+        toStatus: updated.status,
+        changedBy: user.email,
+        timestamp: new Date().toISOString(),
+      }),
+    );
 
     return updated;
   }
@@ -410,12 +441,35 @@ export class WorkOrdersService {
   }
 
   async cancel(id: string, user: AuthenticatedUser, note?: string | null) {
-    await this.findById(id, user);
+    const order = await this.findById(id, user);
+
+    const allowedRoles = CANCEL_RULES[order.status];
+    if (!allowedRoles || !allowedRoles.includes(user.role)) {
+      throw new ForbiddenException(
+        `Cannot cancel work order in status ${order.status} as role ${user.role}`,
+      );
+    }
+
+    if (user.role === 'CUSTOMER' && order.customerId !== user.id) {
+      throw new ForbiddenException('You can only cancel your own work orders');
+    }
+
+    if (
+      user.role === 'TECHNICIAN' &&
+      order.technicianId &&
+      order.technicianId !== user.profileId
+    ) {
+      throw new ForbiddenException(
+        'You can only cancel your own assigned work orders',
+      );
+    }
+
     return this.transition({
       id,
       toStatus: WorkOrderStatus.CANCELLED,
       user,
       note,
+      existingOrder: order,
     });
   }
 }

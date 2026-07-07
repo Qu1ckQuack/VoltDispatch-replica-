@@ -60,10 +60,19 @@ export class LocationCacheService {
     const ids = await this.getActiveTechnicianIds();
     const map = new Map<string, TechnicianPosition>();
 
-    for (const id of ids) {
-      const pos = await this.getPosition(id);
-      if (pos) {
-        map.set(id, pos);
+    if (ids.length === 0) return map;
+
+    const keys = ids.map((id) => `location:tech:${id}`);
+    const rawPositions = await this.redis.getClient().mget(...keys);
+
+    for (let i = 0; i < ids.length; i++) {
+      const raw = rawPositions[i];
+      if (!raw) continue;
+      try {
+        const pos = JSON.parse(raw) as TechnicianPosition;
+        map.set(ids[i], pos);
+      } catch {
+        this.logger.warn(`Invalid position data for technician ${ids[i]}`);
       }
     }
 

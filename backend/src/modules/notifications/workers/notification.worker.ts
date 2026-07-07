@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Worker } from 'bullmq';
 import { NOTIFICATION_QUEUE_NAME } from '../../bullmq/queues/notification.queue.js';
@@ -6,7 +6,7 @@ import { NotificationsService } from '../notifications.service.js';
 import { buildRedisConnectionOptions } from '../../bullmq/bullmq.module.js';
 
 @Injectable()
-export class NotificationWorker implements OnModuleInit {
+export class NotificationWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(NotificationWorker.name);
   private worker: Worker | null = null;
 
@@ -47,5 +47,10 @@ export class NotificationWorker implements OnModuleInit {
     });
 
     this.logger.log('Notification worker started');
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await this.worker?.close();
+    this.logger.log('Notification worker stopped');
   }
 }
