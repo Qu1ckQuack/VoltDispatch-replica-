@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { LocationSocket } from '@/lib/api/locations'
 
@@ -9,12 +9,10 @@ export type ConnectionState = 'connected' | 'reconnecting' | 'disconnected'
 interface UseLocationSocketReturn {
   state: ConnectionState
   lastUpdateAt: Date | null
-  socket: LocationSocket | null
 }
 
 export function useLocationSocket(): UseLocationSocketReturn {
   const accessToken = useAuthStore((s) => s.accessToken)
-  const socketRef = useRef<LocationSocket | null>(null)
   const [state, setState] = useState<ConnectionState>('disconnected')
   const [lastUpdateAt, setLastUpdateAt] = useState<Date | null>(null)
 
@@ -22,11 +20,14 @@ export function useLocationSocket(): UseLocationSocketReturn {
     if (!accessToken) return
 
     const socket = new LocationSocket(accessToken)
-    socketRef.current = socket
+    socket.connect()
 
     const unsub = socket.onMessage((event) => {
       try {
         const data = JSON.parse(event.data)
+        if (data.event === 'connected') {
+          setState('connected')
+        }
         if (data.event === 'position:update') {
           setLastUpdateAt(new Date())
         }
@@ -35,21 +36,12 @@ export function useLocationSocket(): UseLocationSocketReturn {
       }
     })
 
-    let reconnectCount = 0
-    const origOnOpen = socket['connect'].bind(socket)
-    const origOnClose = socket['disconnect']?.bind(socket)
-
     const checkInterval = setInterval(() => {
-      if (socketRef.current) {
-        const ws = (socketRef.current as unknown as { ws: WebSocket | null }).ws
-        if (ws) {
-          setState(ws.readyState === WebSocket.OPEN ? 'connected' : 'reconnecting')
-        }
+      const ws = (socket as unknown as { ws: WebSocket | null }).ws
+      if (ws) {
+        setState(ws.readyState === WebSocket.OPEN ? 'connected' : 'reconnecting')
       }
     }, 2000)
-
-    socket.connect()
-    setState('reconnecting')
 
     const connectionTimer = setTimeout(() => {
       const ws = (socket as unknown as { ws: WebSocket | null }).ws
@@ -63,11 +55,8 @@ export function useLocationSocket(): UseLocationSocketReturn {
       clearTimeout(connectionTimer)
       unsub()
       socket.disconnect()
-      socketRef.current = null
     }
   }, [accessToken])
 
-  const socket = socketRef.current
-
-  return { state, lastUpdateAt, socket }
+  return { state, lastUpdateAt }
 }

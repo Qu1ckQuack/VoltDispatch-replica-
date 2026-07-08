@@ -1,11 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, X } from 'lucide-react'
+import { Plus, X, KeyRound } from 'lucide-react'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { UserRole } from '@/lib/api/types'
-import type { CreateUserDto } from '@/lib/api/types'
-import { useUsers, useCreateUser, useDeactivateUser } from '@/lib/hooks/use-users'
+import { useUsers, useCreateUser, useDeactivateUser, useResetPassword } from '@/lib/hooks/use-users'
 
 export function UserManagement() {
   const currentUser = useAuthStore((s) => s.user)
@@ -17,6 +16,9 @@ export function UserManagement() {
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<UserRole>(UserRole.TECHNICIAN)
   const [phone, setPhone] = useState('')
+  const [resetTarget, setResetTarget] = useState<{ id: string; email: string } | null>(null)
+  const [resetPassword, setResetPassword] = useState('')
+  const resetMutation = useResetPassword()
 
   if (currentUser?.role !== UserRole.HQ) return null
 
@@ -86,15 +88,28 @@ export function UserManagement() {
                     )}
                   </td>
                   <td className="px-6 py-3">
-                    {u.isActive && u.id !== currentUser?.sub && (
-                      <button
-                        onClick={() => deactivateMutation.mutate(u.id)}
-                        disabled={deactivateMutation.isPending}
-                        className="text-xs text-signal-red hover:underline disabled:opacity-50"
-                      >
-                        Deactivate
-                      </button>
-                    )}
+                    <div className="flex items-center gap-3">
+                      {u.isActive && u.id !== currentUser?.sub && (
+                        <button
+                          onClick={() => {
+                            setResetTarget({ id: u.id, email: u.email })
+                            setResetPassword('')
+                          }}
+                          className="flex items-center gap-1 text-xs text-trust-blue hover:underline"
+                        >
+                          <KeyRound size={12} /> Reset PW
+                        </button>
+                      )}
+                      {u.isActive && u.id !== currentUser?.sub && (
+                        <button
+                          onClick={() => deactivateMutation.mutate(u.id)}
+                          disabled={deactivateMutation.isPending}
+                          className="text-xs text-signal-red hover:underline disabled:opacity-50"
+                        >
+                          Deactivate
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -163,6 +178,63 @@ export function UserManagement() {
                   className="rounded-lg bg-trust-blue px-4 py-2 text-sm text-white hover:bg-trust-blue/90 disabled:opacity-50"
                 >
                   {createMutation.isPending ? 'Creating...' : 'Create'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {resetTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="font-semibold text-ink-slate">
+                Reset Password
+              </h3>
+              <button
+                onClick={() => setResetTarget(null)}
+                className="rounded-md p-1 text-muted-foreground hover:bg-muted"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Setting a new password for <strong>{resetTarget.email}</strong>
+            </p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                resetMutation.mutate(
+                  { id: resetTarget.id, newPassword: resetPassword },
+                  { onSuccess: () => setResetTarget(null) },
+                )
+              }}
+              className="space-y-3"
+            >
+              <input
+                type="password"
+                required
+                minLength={8}
+                placeholder="New password (min 8 chars)"
+                value={resetPassword}
+                onChange={(e) => setResetPassword(e.target.value)}
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
+              />
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setResetTarget(null)}
+                  className="rounded-lg border border-border px-4 py-2 text-sm text-ink-slate hover:bg-muted"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={resetMutation.isPending}
+                  className="rounded-lg bg-trust-blue px-4 py-2 text-sm text-white hover:bg-trust-blue/90 disabled:opacity-50"
+                >
+                  {resetMutation.isPending ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </form>

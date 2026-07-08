@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import type { UserPayload } from '@/lib/api/types'
 
 interface AuthState {
@@ -27,6 +27,9 @@ export const useAuthStore = create<AuthState>()(
       setTokens: (accessToken, refreshToken) => set({ accessToken, refreshToken }),
       setUser: (user) => set({ user }),
     }),
-    { name: 'volt-dispatch-auth' },
+    {
+      name: 'volt-dispatch-auth',
+      storage: createJSONStorage(() => sessionStorage),
+    },
   ),
 )

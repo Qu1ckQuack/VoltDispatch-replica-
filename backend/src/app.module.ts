@@ -21,6 +21,7 @@ import { SlaModule } from './modules/sla/sla.module.js';
 import { MediaModule } from './modules/media/media.module.js';
 import { RatingsModule } from './modules/ratings/ratings.module.js';
 import { ReportingModule } from './modules/reporting/reporting.module.js';
+import { RegistrationModule } from './modules/registration/registration.module.js';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { ReportingModule } from './modules/reporting/reporting.module.js';
     MediaModule,
     RatingsModule,
     ReportingModule,
+    RegistrationModule,
   ],
   controllers: [AppController],
   providers: [

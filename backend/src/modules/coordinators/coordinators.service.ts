@@ -20,7 +20,11 @@ export class CoordinatorsService extends ProfileBaseService {
   }
 
   async findByUserId(userId: string) {
-    return super.findByUserId(userId) as Promise<{ id: string; userId: string; department: string }>;
+    return super.findByUserId(userId) as Promise<{
+      id: string;
+      userId: string;
+      department: string;
+    }>;
   }
 
   async create(dto: CreateCoordinatorDto) {

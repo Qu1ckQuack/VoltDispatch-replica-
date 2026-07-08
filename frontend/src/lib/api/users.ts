@@ -10,4 +10,7 @@ export const usersApi = {
 
   deactivate: (id: string) =>
     api.patch<User>(`/users/${id}/deactivate`).then((r) => r.data),
+
+  resetPassword: (id: string, newPassword: string) =>
+    api.post<User>(`/users/${id}/reset-password`, { newPassword }).then((r) => r.data),
 }

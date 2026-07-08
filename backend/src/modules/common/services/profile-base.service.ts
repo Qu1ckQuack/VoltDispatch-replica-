@@ -2,6 +2,19 @@ import { NotFoundException, ConflictException } from '@nestjs/common';
 import type { PrismaService } from '../prisma.service.js';
 import type { UsersService } from '../../users/users.service.js';
 
+type PrismaDelegate = {
+  findUnique: (
+    args: Record<string, unknown>,
+  ) => Promise<Record<string, unknown> | null>;
+  findMany: (
+    args: Record<string, unknown>,
+  ) => Promise<Record<string, unknown>[]>;
+  create: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  update: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
+};
+
+type PrismaClientWithDelegates = Record<string, PrismaDelegate>;
+
 export abstract class ProfileBaseService {
   constructor(
     protected readonly prisma: PrismaService,
@@ -11,23 +24,10 @@ export abstract class ProfileBaseService {
   protected abstract get modelName(): string;
   protected abstract get displayName(): string;
 
-  private get delegate() {
-    return (this.prisma as unknown as Record<string, unknown>)[
+  private get delegate(): PrismaDelegate {
+    return (this.prisma as unknown as PrismaClientWithDelegates)[
       this.modelName
-    ] as {
-      findUnique: (
-        args: Record<string, unknown>,
-      ) => Promise<Record<string, unknown> | null>;
-      findMany: (
-        args: Record<string, unknown>,
-      ) => Promise<Record<string, unknown>[]>;
-      create: (
-        args: Record<string, unknown>,
-      ) => Promise<Record<string, unknown>>;
-      update: (
-        args: Record<string, unknown>,
-      ) => Promise<Record<string, unknown>>;
-    };
+    ];
   }
 
   async findByUserId(userId: string): Promise<Record<string, unknown>> {

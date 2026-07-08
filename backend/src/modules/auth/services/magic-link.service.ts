@@ -17,6 +17,11 @@ export class MagicLinkService {
     try {
       const customer = await this.customersService.consumeAccessToken(token);
 
+      const activeOrder = customer.workOrders?.find(
+        (wo: { status: string; id: string }) =>
+          wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED',
+      );
+
       const accessToken = this.jwtService.sign(
         {
           sub: customer.id,
@@ -24,6 +29,7 @@ export class MagicLinkService {
           name: customer.name,
           role: 'CUSTOMER',
           type: 'customer',
+          workOrderId: activeOrder?.id ?? null,
         },
         { expiresIn: CUSTOMER_TOKEN_EXPIRY },
       );
@@ -34,6 +40,7 @@ export class MagicLinkService {
           id: customer.id,
           name: customer.name,
           email: customer.email,
+          workOrderId: activeOrder?.id ?? null,
         },
       };
     } catch (err) {

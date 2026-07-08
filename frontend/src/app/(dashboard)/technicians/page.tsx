@@ -25,7 +25,6 @@ export default function TechniciansPage() {
 
   const [editTarget, setEditTarget] = useState<Technician | null>(null)
   const [showCreate, setShowCreate] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<Technician | null>(null)
 
   const isHQ = user?.role === UserRole.HQ
 
@@ -46,13 +45,6 @@ export default function TechniciansPage() {
     },
     [editTarget, updateMutation],
   )
-
-  const handleDelete = useCallback(() => {
-    if (!deleteTarget) return
-    deleteMutation.mutate(deleteTarget.id, {
-      onSuccess: () => setDeleteTarget(null),
-    })
-  }, [deleteTarget, deleteMutation])
 
   return (
     <div className="space-y-6">
@@ -85,11 +77,7 @@ export default function TechniciansPage() {
                 key={s}
                 onClick={() => statusMutation.mutate({ status: s })}
                 disabled={statusMutation.isPending}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                  user?.role === UserRole.TECHNICIAN
-                    ? 'bg-trust-blue text-white'
-                    : ''
-                }`}
+                className="rounded-lg border border-border bg-white px-3 py-1.5 text-sm font-medium text-ink-slate transition-colors hover:bg-trust-blue hover:text-white"
               >
                 {s}
               </button>
@@ -102,7 +90,11 @@ export default function TechniciansPage() {
         technicians={technicians}
         loading={isLoading}
         onEdit={setEditTarget}
-        onDelete={setDeleteTarget}
+        onDelete={(t) => {
+          if (window.confirm(`Remove technician ${t.userId.slice(0, 8)}...?`)) {
+            deleteMutation.mutate(t.id)
+          }
+        }}
       />
 
       {showCreate && (

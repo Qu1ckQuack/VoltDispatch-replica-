@@ -28,3 +28,12 @@ export function useDeactivateUser() {
     onSuccess: () => qc.invalidateQueries({ queryKey: [USERS_KEY] }),
   })
 }
+
+export function useResetPassword() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, newPassword }: { id: string; newPassword: string }) =>
+      usersApi.resetPassword(id, newPassword),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [USERS_KEY] }),
+  })
+}

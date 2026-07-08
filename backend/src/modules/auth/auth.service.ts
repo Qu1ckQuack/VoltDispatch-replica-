@@ -90,7 +90,20 @@ export class AuthService {
       { expiresIn: REFRESH_TOKEN_EXPIRY },
     );
 
-    return { accessToken, refreshToken };
+    const now = Math.floor(Date.now() / 1000);
+
+    return {
+      accessToken,
+      refreshToken,
+      user: {
+        sub: userId,
+        email,
+        role,
+        profileId,
+        iat: now,
+        exp: now + 15 * 60,
+      },
+    };
   }
 
   private async resolveProfileId(

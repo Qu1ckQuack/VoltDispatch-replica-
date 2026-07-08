@@ -51,8 +51,8 @@ export function useRescheduleWorkOrder() {
 export function useStartTravelWorkOrder() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, note }: { id: string; note?: string }) =>
-      workOrdersApi.startTravel(id, { note }),
+    mutationFn: ({ id }: { id: string }) =>
+      workOrdersApi.startTravel(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: [WORK_ORDERS_KEY] }),
   })
 }
@@ -60,8 +60,8 @@ export function useStartTravelWorkOrder() {
 export function useStartWorkWorkOrder() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, note }: { id: string; note?: string }) =>
-      workOrdersApi.startWork(id, { note }),
+    mutationFn: ({ id }: { id: string }) =>
+      workOrdersApi.startWork(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: [WORK_ORDERS_KEY] }),
   })
 }
@@ -78,8 +78,8 @@ export function useIssueWorkOrder() {
 export function useResolveIssueWorkOrder() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, note }: { id: string; note?: string }) =>
-      workOrdersApi.resolveIssue(id, { note }),
+    mutationFn: ({ id }: { id: string }) =>
+      workOrdersApi.resolveIssue(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: [WORK_ORDERS_KEY] }),
   })
 }
@@ -96,8 +96,8 @@ export function useEscalateWorkOrder() {
 export function useCompleteWorkOrder() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, note }: { id: string; note?: string }) =>
-      workOrdersApi.complete(id, { note }),
+    mutationFn: ({ id }: { id: string }) =>
+      workOrdersApi.complete(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: [WORK_ORDERS_KEY] }),
   })
 }

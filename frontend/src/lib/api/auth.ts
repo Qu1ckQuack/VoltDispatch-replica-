@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { LoginResponse } from './types'
+import type { LoginResponse, MagicLinkResponse, RegisterDto } from './types'
 
 export const authApi = {
   login: (email: string, password: string) =>
@@ -9,5 +9,8 @@ export const authApi = {
     api.post<LoginResponse>('/auth/refresh', { refreshToken }).then((r) => r.data),
 
   requestMagicLink: (token: string) =>
-    api.post<LoginResponse>('/auth/magic-link', { token }).then((r) => r.data),
+    api.post<MagicLinkResponse>('/auth/magic-link', { token }).then((r) => r.data),
+
+  register: (dto: RegisterDto) =>
+    api.post<{ message: string }>('/register', dto).then((r) => r.data),
 }

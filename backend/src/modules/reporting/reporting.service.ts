@@ -12,37 +12,59 @@ export class ReportingService {
 
   async getOverview() {
     const queries = [
-      this.getStats().catch((err) => {
-        this.logger.error(`Failed to fetch stats: ${(err as Error).message}`);
+      this.getAggregatedMetrics().catch((err) => {
+        this.logger.error(`Failed to fetch metrics: ${(err as Error).message}`);
         return null;
       }),
       this.getDailyByStatusRaw().catch((err) => {
-        this.logger.error(`Failed to fetch daily by status: ${(err as Error).message}`);
+        this.logger.error(
+          `Failed to fetch daily by status: ${(err as Error).message}`,
+        );
         return null;
       }),
       this.getPendingLast7Days().catch((err) => {
-        this.logger.error(`Failed to fetch pending orders: ${(err as Error).message}`);
+        this.logger.error(
+          `Failed to fetch pending orders: ${(err as Error).message}`,
+        );
         return null;
       }),
       this.getRecentlyCompleted().catch((err) => {
-        this.logger.error(`Failed to fetch recently completed: ${(err as Error).message}`);
+        this.logger.error(
+          `Failed to fetch recently completed: ${(err as Error).message}`,
+        );
         return null;
       }),
       this.getTechnicianWorkload().catch((err) => {
-        this.logger.error(`Failed to fetch technician workload: ${(err as Error).message}`);
+        this.logger.error(
+          `Failed to fetch technician workload: ${(err as Error).message}`,
+        );
         return null;
       }),
       this.getRecentActivities().catch((err) => {
-        this.logger.error(`Failed to fetch recent activities: ${(err as Error).message}`);
+        this.logger.error(
+          `Failed to fetch recent activities: ${(err as Error).message}`,
+        );
         return null;
       }),
     ] as const;
 
-    const [stats, dailyByStatus, pendingLast7Days, recentlyCompleted, technicianWorkload, recentActivities] =
-      await Promise.all(queries);
+    const [
+      metrics,
+      dailyByStatus,
+      pendingLast7Days,
+      recentlyCompleted,
+      technicianWorkload,
+      recentActivities,
+    ] = await Promise.all(queries);
 
     return {
-      stats,
+      totalOrders: metrics?.totalOrders ?? 0,
+      activeOrders:
+        (metrics?.pendingOrders ?? 0) + (metrics?.inProcessOrders ?? 0),
+      completedToday: metrics?.completedToday ?? 0,
+      slaBreached: metrics?.slaBreached ?? 0,
+      techniciansOnline: metrics?.techniciansOnline ?? 0,
+      avgRating: metrics?.avgRating ?? null,
       dailyByStatus: dailyByStatus ?? [],
       pendingLast7Days: pendingLast7Days ?? [],
       recentlyCompleted: recentlyCompleted ?? [],
@@ -51,26 +73,35 @@ export class ReportingService {
     };
   }
 
-  private async getStats() {
+  private async getAggregatedMetrics() {
     const rows = await this.prisma.$queryRaw<
       {
         total_orders: bigint;
         pending_orders: bigint;
         in_process_orders: bigint;
-        completed_orders: bigint;
+        completed_today: bigint;
+        sla_breached: bigint;
+        techs_online: bigint;
+        avg_rating: number | null;
       }[]
     >`
       SELECT
         (SELECT COUNT(*)::bigint FROM work_orders) AS total_orders,
         (SELECT COUNT(*)::bigint FROM work_orders WHERE status IN ('REQUESTED','ASSIGNED','ACCEPTED')) AS pending_orders,
         (SELECT COUNT(*)::bigint FROM work_orders WHERE status IN ('EN_ROUTE','IN_PROGRESS','ISSUE')) AS in_process_orders,
-        (SELECT COUNT(*)::bigint FROM work_orders WHERE status = 'COMPLETED') AS completed_orders
+        (SELECT COUNT(*)::bigint FROM work_orders WHERE status = 'COMPLETED' AND completed_at::date = CURRENT_DATE) AS completed_today,
+        (SELECT COUNT(*)::bigint FROM work_orders WHERE status NOT IN ('COMPLETED','CANCELLED') AND sla_deadline < NOW()) AS sla_breached,
+        (SELECT COUNT(*)::bigint FROM technicians WHERE status = 'AVAILABLE') AS techs_online,
+        (SELECT AVG(score)::numeric(3,2) FROM ratings) AS avg_rating
     `;
     return {
       totalOrders: Number(rows[0].total_orders),
       pendingOrders: Number(rows[0].pending_orders),
       inProcessOrders: Number(rows[0].in_process_orders),
-      completedOrders: Number(rows[0].completed_orders),
+      completedToday: Number(rows[0].completed_today),
+      slaBreached: Number(rows[0].sla_breached),
+      techniciansOnline: Number(rows[0].techs_online),
+      avgRating: rows[0].avg_rating ? Number(rows[0].avg_rating) : null,
     };
   }
 
@@ -125,22 +156,22 @@ export class ReportingService {
     const rows = await this.prisma.$queryRaw<
       {
         technician_id: string;
-        name: string;
+        email: string;
         assigned_count: bigint;
       }[]
     >`
-      SELECT wo.technician_id, u.name, COUNT(*)::bigint AS assigned_count
+      SELECT wo.technician_id, u.email, COUNT(*)::bigint AS assigned_count
       FROM work_orders wo
       JOIN technicians t ON t.id = wo.technician_id
       JOIN users u ON u.id = t.user_id
       WHERE wo.status NOT IN ('COMPLETED','CANCELLED')
         AND wo.technician_id IS NOT NULL
-      GROUP BY wo.technician_id, u.name
+      GROUP BY wo.technician_id, u.email
       ORDER BY assigned_count DESC
     `;
     return rows.map((r) => ({
       technicianId: r.technician_id,
-      name: r.name,
+      email: r.email,
       assignedCount: Number(r.assigned_count),
     }));
   }
@@ -180,122 +211,34 @@ export class ReportingService {
 
   async getSummary(query: SummaryQueryDto) {
     const periodInterval = this.buildPeriodInterval(query.period);
+    const periodName = query.period ?? 'month';
 
     const rows = await this.prisma.$queryRaw<
       {
-        total_completed: bigint;
-        avg_processing_hours: number | null;
-        on_time_rate: number | null;
-        avg_rating: number | null;
-        growth_trend: { month: string; completed_count: bigint }[] | null;
-        top_dealers:
-          | { dealer_id: string; company_name: string; order_count: bigint }[]
-          | null;
-        popular_chargers: { model: string; count: bigint }[] | null;
-        dealer_summary:
-          | {
-              dealer_name: string;
-              total_orders: bigint;
-              completed: bigint;
-              issues: bigint;
-              avg_time: number | null;
-              avg_rating: number | null;
-              sla_percent: number | null;
-            }[]
-          | null;
+        date: Date;
+        total: bigint;
+        completed: bigint;
+        cancelled: bigint;
       }[]
     >`
-      WITH filtered AS (
-        SELECT * FROM work_orders
-        WHERE completed_at IS NOT NULL
-          AND completed_at >= NOW() - ${periodInterval}::interval
-      )
       SELECT
-        (SELECT COUNT(*)::bigint FROM filtered) AS total_completed,
-        (SELECT AVG(EXTRACT(EPOCH FROM (completed_at - created_at)) / 3600) FROM filtered) AS avg_processing_hours,
-        (SELECT
-          CASE WHEN COUNT(*) > 0
-            THEN ROUND((COUNT(*) FILTER (WHERE completed_at <= sla_deadline OR sla_deadline IS NULL))::numeric /
-                       COUNT(*)::numeric, 4)
-            ELSE 0 END
-         FROM filtered) AS on_time_rate,
-        (SELECT AVG(r.score)::numeric(3,2) FROM filtered f JOIN ratings r ON r.work_order_id = f.id) AS avg_rating,
-        (SELECT COALESCE(json_agg(row), '[]'::json) FROM (
-          SELECT
-            TO_CHAR(DATE_TRUNC('month', completed_at), 'YYYY-MM') AS month,
-            COUNT(*)::bigint AS completed_count
-          FROM filtered
-          GROUP BY DATE_TRUNC('month', completed_at)
-          ORDER BY 1
-        ) row) AS growth_trend,
-        (SELECT COALESCE(json_agg(row), '[]'::json) FROM (
-          SELECT d.id AS dealer_id, d.company_name, COUNT(*)::bigint AS order_count
-          FROM filtered f
-          JOIN dealers d ON d.id = f.dealer_id
-          GROUP BY d.id, d.company_name
-          ORDER BY order_count DESC
-          LIMIT 10
-        ) row) AS top_dealers,
-        (SELECT COALESCE(json_agg(row), '[]'::json) FROM (
-          SELECT dv.model, COUNT(*)::bigint AS count
-          FROM filtered f
-          JOIN devices dv ON dv.id = f.device_id
-          GROUP BY dv.model
-          ORDER BY count DESC
-          LIMIT 10
-        ) row) AS popular_chargers,
-        (SELECT COALESCE(json_agg(row), '[]'::json) FROM (
-          SELECT
-            d.company_name AS dealer_name,
-            COUNT(*)::bigint AS total_orders,
-            COUNT(*) FILTER (WHERE f.status = 'COMPLETED')::bigint AS completed,
-            COUNT(*) FILTER (WHERE f.status IN ('ISSUE','ESCALATED'))::bigint AS issues,
-            ROUND(AVG(EXTRACT(EPOCH FROM (f.completed_at - f.created_at)) / 3600) FILTER (WHERE f.status = 'COMPLETED'), 2) AS avg_time,
-            ROUND(AVG(r.score) FILTER (WHERE f.status = 'COMPLETED'), 2) AS avg_rating,
-            CASE WHEN COUNT(*) FILTER (WHERE f.status = 'COMPLETED') > 0
-              THEN ROUND(
-                (COUNT(*) FILTER (WHERE f.status = 'COMPLETED' AND f.completed_at <= f.sla_deadline))::numeric /
-                (COUNT(*) FILTER (WHERE f.status = 'COMPLETED'))::numeric, 4)
-              ELSE 0 END AS sla_percent
-          FROM filtered f
-          JOIN dealers d ON d.id = f.dealer_id
-          LEFT JOIN ratings r ON r.work_order_id = f.id
-          GROUP BY d.id, d.company_name
-          ORDER BY total_orders DESC
-        ) row) AS dealer_summary
+        created_at::date AS date,
+        COUNT(*)::bigint AS total,
+        COUNT(*) FILTER (WHERE status = 'COMPLETED')::bigint AS completed,
+        COUNT(*) FILTER (WHERE status = 'CANCELLED')::bigint AS cancelled
+      FROM work_orders
+      WHERE created_at >= NOW() - ${periodInterval}::interval
+      GROUP BY created_at::date
+      ORDER BY date
     `;
 
-    const row = rows[0];
     return {
-      metrics: {
-        totalCompleted: Number(row.total_completed),
-        avgProcessingHours: row.avg_processing_hours
-          ? Number(row.avg_processing_hours.toFixed(2))
-          : 0,
-        onTimeRate: row.on_time_rate ? Number(row.on_time_rate) : 0,
-        avgRatingScore: row.avg_rating ? Number(row.avg_rating) : 0,
-      },
-      growthTrend: (row.growth_trend ?? []).map((g) => ({
-        month: g.month,
-        completedCount: Number(g.completed_count),
-      })),
-      topDealers: (row.top_dealers ?? []).map((d) => ({
-        dealerId: d.dealer_id,
-        companyName: d.company_name,
-        orderCount: Number(d.order_count),
-      })),
-      popularChargers: (row.popular_chargers ?? []).map((c) => ({
-        model: c.model,
-        count: Number(c.count),
-      })),
-      dealerSummary: (row.dealer_summary ?? []).map((s) => ({
-        dealerName: s.dealer_name,
-        totalOrders: Number(s.total_orders),
-        completed: Number(s.completed),
-        issues: Number(s.issues),
-        avgTime: s.avg_time ? Number(s.avg_time) : 0,
-        avgRating: s.avg_rating ? Number(s.avg_rating) : 0,
-        slaPercent: s.sla_percent ? Number(s.sla_percent) : 0,
+      period: periodName,
+      data: rows.map((r) => ({
+        date: r.date.toISOString(),
+        total: Number(r.total),
+        completed: Number(r.completed),
+        cancelled: Number(r.cancelled),
       })),
     };
   }
@@ -311,19 +254,19 @@ export class ReportingService {
         id: string;
         status: string;
         dealer_name: string | null;
-        technician_name: string | null;
+        technician_email: string | null;
         created_at: Date;
       }[]
     >`
       SELECT wo.id, wo.status::text, d.company_name AS dealer_name,
-             u.name AS technician_name, wo.created_at
+             u.email AS technician_email, wo.created_at
       FROM work_orders wo
       LEFT JOIN dealers d ON d.id = wo.dealer_id
       LEFT JOIN technicians t ON t.id = wo.technician_id
       LEFT JOIN users u ON u.id = t.user_id
       WHERE wo.id::text ILIKE ${keyword}
          OR d.company_name ILIKE ${keyword}
-         OR u.name ILIKE ${keyword}
+         OR u.email ILIKE ${keyword}
       ORDER BY wo.created_at DESC
       LIMIT 20
     `;
@@ -332,7 +275,7 @@ export class ReportingService {
       id: r.id,
       status: r.status,
       dealerName: r.dealer_name,
-      technicianName: r.technician_name,
+      technicianEmail: r.technician_email,
       createdAt: r.created_at,
     }));
   }

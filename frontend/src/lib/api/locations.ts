@@ -8,7 +8,6 @@ type MessageHandler = (event: MessageEvent) => void
 
 export class LocationSocket {
   private ws: WebSocket | null = null
-  private url: string
   private token: string
   private reconnectAttempts = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -17,14 +16,26 @@ export class LocationSocket {
   private handlers = new Set<MessageHandler>()
 
   constructor(token: string) {
-    const baseUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001'
-    this.url = `${baseUrl}/ws/locations?token=${token}`
     this.token = token
+  }
+
+  private buildUrl(): string {
+    const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:'
+    const baseUrl = process.env.NEXT_PUBLIC_WS_URL || (isSecure ? 'wss://localhost:3001' : 'ws://localhost:3001')
+    return `${baseUrl}/ws/locations?token=${this.token}`
+  }
+
+  updateToken(token: string) {
+    this.token = token
+    if (this.ws) {
+      this.disconnect()
+      this.connect()
+    }
   }
 
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN) return
-    this.ws = new WebSocket(this.url)
+    this.ws = new WebSocket(this.buildUrl())
 
     this.ws.onopen = () => {
       this.reconnectAttempts = 0
@@ -48,6 +59,8 @@ export class LocationSocket {
   disconnect() {
     this.stopLocationPush()
     this.clearReconnect()
+    this.position = null
+    this.handlers.clear()
     if (this.ws) {
       this.ws.onclose = null
       this.ws.close()
@@ -62,15 +75,15 @@ export class LocationSocket {
     }
   }
 
-  subscribe(technicianId: string) {
+  subscribe(room: string) {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ event: 'subscribe', data: { technicianId } }))
+      this.ws.send(JSON.stringify({ event: 'subscribe', data: { room } }))
     }
   }
 
-  unsubscribe(technicianId: string) {
+  unsubscribe(room: string) {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ event: 'unsubscribe', data: { technicianId } }))
+      this.ws.send(JSON.stringify({ event: 'unsubscribe', data: { room } }))
     }
   }
 

@@ -3,6 +3,7 @@
 import { ProfileCard } from '@/components/settings/profile-card'
 import { DealerSettings } from '@/components/settings/dealer-settings'
 import { UserManagement } from '@/components/settings/user-management'
+import { PendingApprovals } from '@/components/settings/pending-approvals'
 
 export default function SettingsPage() {
   return (
@@ -14,6 +15,7 @@ export default function SettingsPage() {
         </p>
       </div>
 
+      <PendingApprovals />
       <ProfileCard />
       <DealerSettings />
       <UserManagement />

@@ -23,7 +23,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true
       const refreshToken = useAuthStore.getState().refreshToken
-      if (refreshToken) {
+      if (refreshToken && refreshToken.length > 0) {
         try {
           const { data } = await axios.post(
             `${api.defaults.baseURL}/auth/refresh`,

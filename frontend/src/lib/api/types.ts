@@ -52,7 +52,6 @@ export interface User {
   id: string
   email: string
   phone: string | null
-  passwordHash: string
   role: UserRole
   lineUserId: string | null
   isActive: boolean
@@ -83,7 +82,9 @@ export interface Coordinator {
 export interface Technician {
   id: string
   userId: string
+  district: string
   subDistrict: string
+  zipCode: string
   status: TechnicianStatus
   lastLat: number | null
   lastLng: number | null
@@ -183,10 +184,44 @@ export interface Notification {
   createdAt: string
 }
 
+export interface RegistrationRequest {
+  id: string
+  email: string
+  phone: string
+  role: UserRole
+  district: string
+  subDistrict: string | null
+  zipCode: string
+  companyName: string | null
+  status: string
+  createdAt: string
+}
+
+export interface RegisterDto {
+  email: string
+  password: string
+  phone: string
+  role: UserRole
+  district: string
+  subDistrict?: string
+  zipCode: string
+  companyName?: string
+}
+
 export interface LoginResponse {
   accessToken: string
   refreshToken: string
   user: UserPayload
+}
+
+export interface MagicLinkResponse {
+  accessToken: string
+  customer: {
+    id: string
+    name: string
+    email: string
+    workOrderId: string | null
+  }
 }
 
 export interface UserPayload {
@@ -215,11 +250,15 @@ export interface CreateUserDto {
 
 export interface CreateTechnicianDto {
   userId: string
+  district: string
   subDistrict: string
+  zipCode: string
 }
 
 export interface UpdateTechnicianDto {
+  district?: string
   subDistrict?: string
+  zipCode?: string
 }
 
 export interface UpdateStatusDto {

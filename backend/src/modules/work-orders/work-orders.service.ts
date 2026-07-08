@@ -90,15 +90,21 @@ export class WorkOrdersService {
     if (query?.department) where.department = query.department;
     if (query?.priority !== undefined) where.priority = query.priority;
 
-    return this.prisma.workOrder.findMany({
-      where,
-      include: { customer: true, device: true, technician: true },
-      orderBy: { createdAt: 'desc' },
-      take: query?.limit ?? DEFAULT_PAGE_LIMIT,
-      skip: query?.page
-        ? (query.page - 1) * (query.limit ?? DEFAULT_PAGE_LIMIT)
-        : 0,
-    });
+    const page = query?.page ?? 1;
+    const limit = query?.limit ?? DEFAULT_PAGE_LIMIT;
+
+    const [data, total] = await Promise.all([
+      this.prisma.workOrder.findMany({
+        where,
+        include: { customer: true, device: true, technician: true },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: (page - 1) * limit,
+      }),
+      this.prisma.workOrder.count({ where }),
+    ]);
+
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async findById(id: string, user: AuthenticatedUser) {

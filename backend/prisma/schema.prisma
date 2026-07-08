@@ -116,6 +116,14 @@ enum NotificationStatus {
   @@map("notification_status")
 }
 
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+
+  @@map("request_status")
+}
+
 // ----------------------------------------------------------------------------
 // users — base identity for HQ / Dealer / Coordinator / Technician.
 // Customers are deliberately excluded (see Customer model below) — they
@@ -190,7 +198,9 @@ model Coordinator {
 model Technician {
   id             String           @id @default(uuid(7)) @db.Uuid
   userId         String           @unique @map("user_id") @db.Uuid
+  district       String
   subDistrict    String           @map("sub_district")
+  zipCode        String           @map("zip_code")
   status         TechnicianStatus @default(OFFLINE)
   lastLat        Float?           @map("last_lat")
   lastLng        Float?           @map("last_lng")
@@ -423,6 +433,31 @@ model Notification {
   @@index([userId])
   @@index([customerId])
   @@map("notifications")
+}
+
+// ----------------------------------------------------------------------------
+// registration_requests — pending account creations awaiting HQ/Coordinator
+// approval. After approval the user + profile records are created and this
+// row is set to APPROVED. REJECTED rows are kept for audit.
+// ----------------------------------------------------------------------------
+
+model RegistrationRequest {
+  id           String        @id @default(uuid(7)) @db.Uuid
+  email        String        @unique
+  passwordHash String        @map("password_hash")
+  phone        String
+  country      String        @default("TH")
+  role         UserRole
+  district     String
+  subDistrict  String?       @map("sub_district")
+  zipCode      String        @map("zip_code")
+  companyName  String?       @map("company_name")
+  status       RequestStatus @default(PENDING)
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  @@index([role, status])
+  @@map("registration_requests")
 }
 
 // ============================================================================

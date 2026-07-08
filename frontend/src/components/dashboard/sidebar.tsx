@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { PanelLeftClose, PanelLeft, ChevronDown } from 'lucide-react'
+import { PanelLeftClose, PanelLeft } from 'lucide-react'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { filterNavLinks } from './nav-links'
 import { cn } from '@/lib/utils'

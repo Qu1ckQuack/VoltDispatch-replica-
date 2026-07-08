@@ -14,7 +14,7 @@ export interface CustomerUser {
   id: string;
   name: string;
   email?: string | null;
-  type: 'customer';
+  role: 'CUSTOMER';
 }
 
 export type CurrentUser = AuthenticatedUser | CustomerUser;
@@ -28,7 +28,7 @@ export class ScopingService {
   async applyWorkOrderScope(
     user: CurrentUser | undefined,
   ): Promise<Record<string, unknown>> {
-    if (!user || 'type' in user) {
+    if (!user) {
       return {};
     }
 

@@ -21,7 +21,10 @@ export class TechniciansService extends ProfileBaseService {
   }
 
   async findByUserId(userId: string) {
-    return super.findByUserId(userId) as Promise<{ id: string; userId: string }>;
+    return super.findByUserId(userId) as Promise<{
+      id: string;
+      userId: string;
+    }>;
   }
 
   async create(dto: CreateTechnicianDto) {

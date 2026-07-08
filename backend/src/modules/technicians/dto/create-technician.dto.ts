@@ -5,5 +5,11 @@ export class CreateTechnicianDto {
   userId!: string;
 
   @IsString()
+  district!: string;
+
+  @IsString()
   subDistrict!: string;
+
+  @IsString()
+  zipCode!: string;
 }

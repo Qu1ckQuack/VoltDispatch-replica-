@@ -11,6 +11,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
+import type { IncomingMessage } from 'http';
 import type { Server, WebSocket } from 'ws';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -101,7 +102,10 @@ export class LocationGateway
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
 
-  async handleConnection(client: WebSocket, request: Request): Promise<void> {
+  async handleConnection(
+    client: WebSocket,
+    request: IncomingMessage,
+  ): Promise<void> {
     try {
       const url = new URL(request.url ?? '', 'http://localhost');
       const token = url.searchParams.get('token');
@@ -110,7 +114,7 @@ export class LocationGateway
         return;
       }
 
-      const origin = request.headers.get('origin') ?? '';
+      const origin = (request.headers['origin'] as string) ?? '';
       const user = await this.wsAuthService.verify(token, origin);
 
       this.clientData.set(client, { user });

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { X } from 'lucide-react'
 import type { Technician, CreateTechnicianDto, UpdateTechnicianDto } from '@/lib/api/types'
 
@@ -18,22 +18,17 @@ export function TechnicianFormModal({
   loading,
 }: TechnicianFormModalProps) {
   const isEdit = !!technician
-  const [userId, setUserId] = useState('')
-  const [subDistrict, setSubDistrict] = useState('')
-
-  useEffect(() => {
-    if (technician) {
-      setUserId(technician.userId)
-      setSubDistrict(technician.subDistrict)
-    }
-  }, [technician])
+  const [userId, setUserId] = useState(technician?.userId ?? '')
+  const [district, setDistrict] = useState(technician?.district ?? '')
+  const [subDistrict, setSubDistrict] = useState(technician?.subDistrict ?? '')
+  const [zipCode, setZipCode] = useState(technician?.zipCode ?? '')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (isEdit) {
-      onSubmit({ subDistrict } as UpdateTechnicianDto)
+      onSubmit({ district, subDistrict, zipCode } as UpdateTechnicianDto)
     } else {
-      onSubmit({ userId, subDistrict } as CreateTechnicianDto)
+      onSubmit({ userId, district, subDistrict, zipCode } as CreateTechnicianDto)
     }
   }
 
@@ -70,6 +65,19 @@ export function TechnicianFormModal({
           )}
           <div>
             <label className="mb-1 block text-sm font-medium text-ink-slate">
+              District
+            </label>
+            <input
+              type="text"
+              required
+              value={district}
+              onChange={(e) => setDistrict(e.target.value)}
+              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
+              placeholder="e.g. Watthana"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-ink-slate">
               Sub-district
             </label>
             <input
@@ -79,6 +87,19 @@ export function TechnicianFormModal({
               onChange={(e) => setSubDistrict(e.target.value)}
               className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
               placeholder="e.g. Khlong Toei"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-ink-slate">
+              Zip Code
+            </label>
+            <input
+              type="text"
+              required
+              value={zipCode}
+              onChange={(e) => setZipCode(e.target.value)}
+              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
+              placeholder="e.g. 10110"
             />
           </div>
           <div className="flex justify-end gap-2 border-t border-border pt-4">

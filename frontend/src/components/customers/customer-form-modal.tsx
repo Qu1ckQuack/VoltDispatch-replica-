@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { X } from 'lucide-react'
 import type { Customer, CreateCustomerDto, UpdateCustomerDto } from '@/lib/api/types'
 
@@ -18,21 +18,11 @@ export function CustomerFormModal({
   loading,
 }: CustomerFormModalProps) {
   const isEdit = !!customer
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [email, setEmail] = useState('')
-  const [address, setAddress] = useState('')
-  const [subDistrict, setSubDistrict] = useState('')
-
-  useEffect(() => {
-    if (customer) {
-      setName(customer.name)
-      setPhone(customer.phone || '')
-      setEmail(customer.email || '')
-      setAddress(customer.address)
-      setSubDistrict(customer.subDistrict)
-    }
-  }, [customer])
+  const [name, setName] = useState(customer?.name ?? '')
+  const [phone, setPhone] = useState(customer?.phone ?? '')
+  const [email, setEmail] = useState(customer?.email ?? '')
+  const [address, setAddress] = useState(customer?.address ?? '')
+  const [subDistrict, setSubDistrict] = useState(customer?.subDistrict ?? '')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
