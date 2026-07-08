@@ -13,6 +13,7 @@ const ROLE_ROUTES: Record<string, string> = {
   [UserRole.COORDINATOR]: '/queue',
   [UserRole.DEALER]: '/dashboard',
   [UserRole.TECHNICIAN]: '/dashboard',
+  [UserRole.CUSTOMER]: '/dashboard',
 }
 
 export function LoginForm() {
@@ -32,8 +33,12 @@ export function LoginForm() {
       const res = await authApi.login(email, password)
       login(res.accessToken, res.refreshToken, res.user)
       router.push(ROLE_ROUTES[res.user.role] || '/dashboard')
-    } catch {
-      setError('Invalid email or password')
+    } catch (err) {
+      const message =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response: { data?: { message?: string } } }).response?.data?.message
+          : null
+      setError(message || 'Invalid email or password')
     } finally {
       setLoading(false)
     }

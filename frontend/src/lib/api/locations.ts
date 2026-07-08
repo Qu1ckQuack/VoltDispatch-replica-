@@ -33,6 +33,10 @@ export class LocationSocket {
     }
   }
 
+  get activeSocket(): WebSocket | null {
+    return this.ws
+  }
+
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN) return
     this.ws = new WebSocket(this.buildUrl())

@@ -22,12 +22,14 @@ jobs:
       - run: npm ci
       - run: npx prisma generate
         env:
-          DATABASE_URL: postgresql://localhost:5432/voltdispatch
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/voltdispatch
       - run: npm run lint
       - run: npm run build
-      - run: npm test -- --passWithNoTests
+      - run: npm test
         env:
-          DATABASE_URL: postgresql://localhost:5432/voltdispatch
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/voltdispatch
+      - run: npm audit --audit-level=high
+        continue-on-error: true
 
   frontend:
     runs-on: ubuntu-latest
@@ -44,4 +46,5 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
-      - run: npm test 2>/dev/null || echo "No tests configured"
+      - run: npm test
+        continue-on-error: true

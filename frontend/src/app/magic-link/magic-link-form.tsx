@@ -15,10 +15,10 @@ function MagicLinkHandler({ token }: { token: string }) {
     authApi
       .requestMagicLink(token)
       .then((res) => {
-        login(res.accessToken, null as unknown as string, {
+        login(res.accessToken, '', {
           sub: res.customer.id,
           email: res.customer.email ?? '',
-          role: 'CUSTOMER' as UserRole,
+          role: UserRole.CUSTOMER,
           profileId: res.customer.id,
           iat: Math.floor(Date.now() / 1000),
           exp: Math.floor(Date.now() / 1000) + 900,

@@ -2,6 +2,7 @@ import { Module, ValidationPipe } from '@nestjs/common';
 import { APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { CommonModule } from './modules/common/common.module.js';
@@ -27,6 +28,7 @@ import { RegistrationModule } from './modules/registration/registration.module.j
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    EventEmitterModule.forRoot(),
     ThrottlerModule.forRoot([
       {
         ttl: 1000,

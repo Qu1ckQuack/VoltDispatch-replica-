@@ -20,8 +20,9 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true
+    const retryKey = `_retry_${originalRequest.url}`
+    if (error.response?.status === 401 && !originalRequest[retryKey]) {
+      originalRequest[retryKey] = true
       const refreshToken = useAuthStore.getState().refreshToken
       if (refreshToken && refreshToken.length > 0) {
         try {

@@ -23,7 +23,7 @@ import { CoordinatorsModule } from '../coordinators/coordinators.module.js';
     JwtModule.registerAsync({
       useFactory: (config: ConfigService) => ({
         secret: config.getOrThrow<string>('JWT_SECRET'),
-        signOptions: { expiresIn: '15m' },
+        signOptions: { expiresIn: config.get('JWT_ACCESS_EXPIRY', '15m') },
       }),
       inject: [ConfigService],
     }),

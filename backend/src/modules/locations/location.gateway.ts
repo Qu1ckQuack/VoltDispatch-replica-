@@ -20,22 +20,19 @@ import {
   type WsAuthenticatedUser,
 } from './services/ws-auth.service.js';
 import { LocationCacheService } from './location-cache.service.js';
+import { LocationService } from './location.service.js';
 import { UpdatePositionDto } from './dto/update-position.dto.js';
-import { PrismaService } from '../common/prisma.service.js';
 import { RedisService } from '../redis/redis.service.js';
 import { RoomManagerService } from './services/room-manager.service.js';
 import { PositionRateLimiterService } from './services/position-rate-limiter.service.js';
-import { WorkOrderStatus } from '../../generated/prisma/enums.js';
-import { rlsStorage, type RlsUser } from '../common/services/rls-context.js';
+import { rlsStorage } from '../common/services/rls-context.js';
 
 const LOCATION_UPDATES_CHANNEL = 'location:updates';
 const HQ_ACTIVITIES_CHANNEL = 'hq:activities';
-
 const MIN_DISTANCE_M = 50;
 
 interface ClientData {
   user: WsAuthenticatedUser;
-  rlsUser: RlsUser;
   lastProcessedPos?: { lat: number; lng: number };
 }
 
@@ -46,11 +43,7 @@ interface ClientData {
   maxPayload: 2048,
 })
 export class LocationGateway
-  implements
-    OnModuleInit,
-    OnModuleDestroy,
-    OnGatewayConnection,
-    OnGatewayDisconnect
+  implements OnModuleInit, OnModuleDestroy, OnGatewayConnection, OnGatewayDisconnect
 {
   @WebSocketServer()
   server!: Server;
@@ -61,7 +54,7 @@ export class LocationGateway
   constructor(
     private readonly wsAuthService: WsAuthService,
     private readonly locationCache: LocationCacheService,
-    private readonly prisma: PrismaService,
+    private readonly locationService: LocationService,
     private readonly redis: RedisService,
     private readonly roomManager: RoomManagerService,
     private readonly rateLimiter: PositionRateLimiterService,
@@ -119,12 +112,11 @@ export class LocationGateway
       const origin = (request.headers['origin'] as string) ?? '';
       const user = await this.wsAuthService.verify(token, origin);
 
-      const rlsUser = await this.buildRlsUser(user);
-      this.clientData.set(client, { user, rlsUser });
+      this.clientData.set(client, { user });
       this.rateLimiter.init(client);
 
       this.send(client, 'connected', { userId: user.id, role: user.role });
-      await rlsStorage.run(rlsUser, () => this.autoSubscribe(client, user));
+      await this.autoSubscribe(client, user);
       this.logger.debug(`WS connected: ${user.role}:${user.id}`);
     } catch (err) {
       this.logger.warn(`WS connection rejected: ${(err as Error).message}`);
@@ -137,11 +129,8 @@ export class LocationGateway
     if (data) {
       this.roomManager.unsubscribeAll(client);
 
-      // Sync last-known position to DB on disconnect.
       if (data.user.role === 'TECHNICIAN' && data.user.profileId) {
-        await rlsStorage.run(data.rlsUser, () =>
-          this.syncLastPositionToDb(data.user.profileId!),
-        );
+        await this.locationService.syncLastPositionToDb(data.user.profileId);
       }
     }
     this.clientData.delete(client);
@@ -183,7 +172,7 @@ export class LocationGateway
 
     if (
       data.lastProcessedPos &&
-      this.haversineDistance(
+      this.locationService.haversineDistance(
         data.lastProcessedPos.lat,
         data.lastProcessedPos.lng,
         dto.lat,
@@ -242,9 +231,7 @@ export class LocationGateway
     }
 
     const room = payload.room;
-    const allowed = await rlsStorage.run(data.rlsUser, () =>
-      this.validateRoomAccess(data.user, room),
-    );
+    const allowed = await this.locationService.validateRoomAccess(data.user, room);
     if (!allowed) {
       this.send(client, 'error', { message: 'Access denied to this room' });
       return;
@@ -265,195 +252,18 @@ export class LocationGateway
     this.roomManager.unsubscribe(client, payload.room);
   }
 
-  private async syncLastPositionToDb(technicianId: string): Promise<void> {
-    try {
-      const pos = await this.locationCache.getPosition(technicianId);
-      if (pos) {
-        await this.prisma.technician.update({
-          where: { id: technicianId },
-          data: {
-            lastLat: pos.lat,
-            lastLng: pos.lng,
-            lastLocationAt: new Date(pos.timestamp),
-          },
-        });
-      }
-    } catch (err) {
-      this.logger.warn(
-        `Failed to sync position for technician ${technicianId}: ${(err as Error).message}`,
-      );
-    }
-  }
-
-  private haversineDistance(
-    lat1: number,
-    lng1: number,
-    lat2: number,
-    lng2: number,
-  ): number {
-    const R = 6371000;
-    const toRad = (deg: number) => (deg * Math.PI) / 180;
-    const dLat = toRad(lat2 - lat1);
-    const dLng = toRad(lng2 - lng1);
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  }
-
-  private async buildRlsUser(user: WsAuthenticatedUser): Promise<RlsUser> {
-    const rlsUser: RlsUser = {
-      userId: user.id,
-      role: user.role,
-    };
-
-    if (user.role === 'CUSTOMER') {
-      rlsUser.customerId = user.id;
-    } else if (user.profileId) {
-      rlsUser.profileId = user.profileId;
-    }
-
-    if (user.role === 'COORDINATOR') {
-      const dept = await this.resolveCoordinatorDepartment(user.id);
-      if (dept) rlsUser.department = dept;
-    }
-
-    return rlsUser;
-  }
-
-  private async resolveCoordinatorDepartment(
-    userId: string,
-  ): Promise<string | undefined> {
-    try {
-      const rows = await this.prisma.raw.$transaction(async (tx) => {
-        await tx.$executeRawUnsafe(
-          `SELECT set_config('app.user_id', $1, true)`,
-          [userId],
-        );
-        await tx.$executeRawUnsafe(
-          `SELECT set_config('app.user_role', 'COORDINATOR', true)`,
-        );
-        return tx.$queryRawUnsafe<{ department: string }[]>(
-          'SELECT department FROM coordinators WHERE user_id = $1::uuid LIMIT 1',
-          [userId],
-        );
-      });
-      return rows[0]?.department;
-    } catch (err) {
-      this.logger.warn(
-        `Failed to resolve department for coordinator ${userId}: ${(err as Error).message}`,
-      );
-      return undefined;
-    }
-  }
-
   private async autoSubscribe(
     client: WebSocket,
     user: WsAuthenticatedUser,
   ): Promise<void> {
-    let orderIds: string[] = [];
-
-    switch (user.role) {
-      case 'TECHNICIAN':
-        if (user.profileId) {
-          const active = await this.prisma.workOrder.findMany({
-            where: {
-              technicianId: user.profileId,
-              status: {
-                notIn: [WorkOrderStatus.COMPLETED, WorkOrderStatus.CANCELLED],
-              },
-            },
-            select: { id: true },
-          });
-          orderIds = active.map((o: { id: string }) => o.id);
-        }
-        break;
-      case 'CUSTOMER': {
-        const orders = await this.prisma.workOrder.findMany({
-          where: { customerId: user.id },
-          select: { id: true },
-        });
-        orderIds = orders.map((o: { id: string }) => o.id);
-        break;
-      }
-      case 'COORDINATOR': {
-        const coordinator = await this.prisma.coordinator.findUnique({
-          where: { userId: user.id },
-          select: { department: true },
-        });
-        if (coordinator?.department) {
-          const orders = await this.prisma.workOrder.findMany({
-            where: {
-              department: coordinator.department,
-              status: {
-                notIn: [WorkOrderStatus.COMPLETED, WorkOrderStatus.CANCELLED],
-              },
-            },
-            select: { id: true },
-          });
-          orderIds = orders.map((o: { id: string }) => o.id);
-        }
-        break;
-      }
-      case 'HQ': {
-        const orders = await this.prisma.workOrder.findMany({
-          where: {
-            status: {
-              notIn: [WorkOrderStatus.COMPLETED, WorkOrderStatus.CANCELLED],
-            },
-          },
-          select: { id: true },
-          take: 50,
-        });
-        orderIds = orders.map((o: { id: string }) => o.id);
-
-        this.roomManager.subscribe(client, 'room:hq:activities');
-        break;
-      }
-    }
+    const orderIds = await this.locationService.autoSubscribeRooms(user);
 
     for (const id of orderIds) {
       this.roomManager.subscribe(client, `room:order:${id}`);
     }
-  }
 
-  private async validateRoomAccess(
-    user: WsAuthenticatedUser,
-    room: string,
-  ): Promise<boolean> {
-    const orderMatch = room.match(/^room:order:(.+)$/);
-    if (!orderMatch) return false;
-
-    const orderId = orderMatch[1];
-
-    switch (user.role) {
-      case 'CUSTOMER': {
-        const order = await this.prisma.workOrder.findFirst({
-          where: { id: orderId, customerId: user.id },
-        });
-        return !!order;
-      }
-      case 'COORDINATOR': {
-        const [order, coordinator] = await Promise.all([
-          this.prisma.workOrder.findUnique({
-            where: { id: orderId },
-            select: { department: true },
-          }),
-          this.prisma.coordinator.findUnique({
-            where: { userId: user.id },
-            select: { department: true },
-          }),
-        ]);
-        return (
-          !!order &&
-          !!coordinator &&
-          order.department === coordinator.department
-        );
-      }
-      case 'HQ':
-        return true;
-      default:
-        return false;
+    if (user.role === 'HQ') {
+      this.roomManager.subscribe(client, 'room:hq:activities');
     }
   }
 

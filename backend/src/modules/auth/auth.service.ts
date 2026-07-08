@@ -1,4 +1,5 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service.js';
@@ -10,14 +11,14 @@ import { TokenRevokeService } from '../common/services/token-revoke.service.js';
 import { LoginDto } from './dto/login.dto.js';
 import { UserRole } from '../../generated/prisma/enums.js';
 
-const ACCESS_TOKEN_EXPIRY = '15m';
-const REFRESH_TOKEN_EXPIRY = '7d';
-
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly accessTokenExpiry: string;
+  private readonly refreshTokenExpiry: string;
 
   constructor(
+    private readonly configService: ConfigService,
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly magicLinkService: MagicLinkService,
@@ -25,7 +26,10 @@ export class AuthService {
     private readonly dealersService: DealersService,
     private readonly techniciansService: TechniciansService,
     private readonly coordinatorsService: CoordinatorsService,
-  ) {}
+  ) {
+    this.accessTokenExpiry = this.configService.get<string>('JWT_ACCESS_EXPIRY', '15m');
+    this.refreshTokenExpiry = this.configService.get<string>('JWT_REFRESH_EXPIRY', '7d');
+  }
 
   async login(dto: LoginDto) {
     const user = await this.usersService.findByEmail(dto.email);
@@ -82,15 +86,17 @@ export class AuthService {
 
     const accessToken = this.jwtService.sign(
       { sub: userId, email, role, profileId, type: 'access' },
-      { expiresIn: ACCESS_TOKEN_EXPIRY },
+      { expiresIn: this.accessTokenExpiry } as any,
     );
 
     const refreshToken = this.jwtService.sign(
       { sub: userId, email, role, type: 'refresh' },
-      { expiresIn: REFRESH_TOKEN_EXPIRY },
+      { expiresIn: this.refreshTokenExpiry } as any,
     );
 
     const now = Math.floor(Date.now() / 1000);
+    const exp = this.parseExpiryToSeconds(this.accessTokenExpiry);
+    const expTime = now + exp;
 
     return {
       accessToken,
@@ -101,7 +107,7 @@ export class AuthService {
         role,
         profileId,
         iat: now,
-        exp: now + 15 * 60,
+        exp: expTime,
       },
     };
   }
@@ -126,6 +132,19 @@ export class AuthService {
         `Failed to resolve profile for user ${userId}: ${(err as Error).message}`,
       );
       return null;
+    }
+  }
+
+  private parseExpiryToSeconds(expiry: string): number {
+    const match = expiry.match(/^(\d+)([smhd])$/);
+    if (!match) return 900;
+    const value = parseInt(match[1], 10);
+    switch (match[2]) {
+      case 's': return value;
+      case 'm': return value * 60;
+      case 'h': return value * 3600;
+      case 'd': return value * 86400;
+      default: return 900;
     }
   }
 }

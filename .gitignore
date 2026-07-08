@@ -3,3 +3,6 @@ dist/
 .next/
 *.env
 coverage/
+*.log
+.opencode/
+backend/src/generated/

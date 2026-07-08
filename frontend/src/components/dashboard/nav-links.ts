@@ -6,6 +6,7 @@ import {
   CalendarClock,
   BarChart3,
   Settings,
+  MapPin,
   type LucideIcon,
 } from 'lucide-react'
 import { UserRole } from '@/lib/api/types'
@@ -47,6 +48,12 @@ export const navLinks: NavLink[] = [
     href: '/technicians',
     icon: Wrench,
     roles: [UserRole.HQ, UserRole.COORDINATOR],
+  },
+  {
+    label: 'Live Map',
+    href: '/live-map',
+    icon: MapPin,
+    roles: [UserRole.HQ, UserRole.COORDINATOR, UserRole.TECHNICIAN, UserRole.CUSTOMER],
   },
   {
     label: 'Schedule',

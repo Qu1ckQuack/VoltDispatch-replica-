@@ -3,6 +3,7 @@ export enum UserRole {
   DEALER = 'DEALER',
   COORDINATOR = 'COORDINATOR',
   TECHNICIAN = 'TECHNICIAN',
+  CUSTOMER = 'CUSTOMER',
 }
 
 export enum TechnicianStatus {
