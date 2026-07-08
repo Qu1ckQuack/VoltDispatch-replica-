@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { LocationSocket } from '@/lib/api/locations'
+import { authApi } from '@/lib/api/auth'
+import { isTokenExpired } from '@/lib/api/jwt'
 
 export type ConnectionState = 'connected' | 'reconnecting' | 'disconnected'
 
@@ -31,52 +33,83 @@ export function useLocationSocket(): UseLocationSocketReturn {
 
   const socketRef = useRef<LocationSocket | null>(null)
 
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const unsubRef = useRef<(() => void) | null>(null)
+
   useEffect(() => {
     if (!accessToken) return
 
-    const socket = new LocationSocket(accessToken)
-    socket.connect()
-    socketRef.current = socket
+    let active = true
 
-    const unsub = socket.onMessage((event) => {
-      try {
-        const data = JSON.parse(event.data)
-        if (data.event === 'connected') {
+    ;(async () => {
+      let token = accessToken
+      if (isTokenExpired(token)) {
+        const refreshToken = useAuthStore.getState().refreshToken
+        if (refreshToken) {
+          try {
+            const res = await authApi.refresh(refreshToken)
+            useAuthStore.getState().setTokens(res.accessToken, res.refreshToken)
+            return
+          } catch {
+            return
+          }
+        } else {
+          return
+        }
+      }
+
+      if (!active) return
+
+      const socket = new LocationSocket(token)
+      socket.connect()
+      socketRef.current = socket
+
+      const unsub = socket.onMessage((event) => {
+        try {
+          const data = JSON.parse(event.data)
+          if (data.event === 'connected') {
+            setState('connected')
+          }
+          if (data.event === 'position:update') {
+            setLastUpdateAt(new Date())
+          }
+          if (data.event === 'technician:position') {
+            const { technicianId, lat, lng, timestamp } = data.data
+            positionsRef.current.set(technicianId, { technicianId, lat, lng, timestamp })
+            setPositions(new Map(positionsRef.current))
+            setLastUpdateAt(new Date())
+          }
+        } catch {
+          // skip malformed messages
+        }
+      })
+      unsubRef.current = unsub
+
+      tickRef.current = setInterval(() => {
+        const ws = socket.activeSocket
+        if (ws) {
+          setState(ws.readyState === WebSocket.OPEN ? 'connected' : 'reconnecting')
+        }
+      }, 2000)
+
+      timerRef.current = setTimeout(() => {
+        const ws = socket.activeSocket
+        if (ws?.readyState === WebSocket.OPEN) {
           setState('connected')
         }
-        if (data.event === 'position:update') {
-          setLastUpdateAt(new Date())
-        }
-        if (data.event === 'technician:position') {
-          const { technicianId, lat, lng, timestamp } = data.data
-          positionsRef.current.set(technicianId, { technicianId, lat, lng, timestamp })
-          setPositions(new Map(positionsRef.current))
-          setLastUpdateAt(new Date())
-        }
-      } catch {
-        // skip malformed messages
-      }
-    })
-
-    const checkInterval = setInterval(() => {
-      const ws = socket.activeSocket
-      if (ws) {
-        setState(ws.readyState === WebSocket.OPEN ? 'connected' : 'reconnecting')
-      }
-    }, 2000)
-
-    const connectionTimer = setTimeout(() => {
-      const ws = socket.activeSocket
-      if (ws?.readyState === WebSocket.OPEN) {
-        setState('connected')
-      }
-    }, 1500)
+      }, 1500)
+    })()
 
     return () => {
-      clearInterval(checkInterval)
-      clearTimeout(connectionTimer)
-      unsub()
-      socket.disconnect()
+      active = false
+      if (tickRef.current) clearInterval(tickRef.current)
+      if (timerRef.current) clearTimeout(timerRef.current)
+      tickRef.current = null
+      timerRef.current = null
+      unsubRef.current?.()
+      unsubRef.current = null
+      socketRef.current?.disconnect()
       socketRef.current = null
       positionsRef.current = new Map()
     }
