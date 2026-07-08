@@ -1,10 +1,11 @@
 import { Module, ValidationPipe } from '@nestjs/common';
-import { APP_PIPE } from '@nestjs/core';
+import { APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { CommonModule } from './modules/common/common.module.js';
+import { RlsInterceptor } from './modules/common/interceptors/rls.interceptor.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { DealersModule } from './modules/dealers/dealers.module.js';
@@ -58,6 +59,10 @@ import { RegistrationModule } from './modules/registration/registration.module.j
   controllers: [AppController],
   providers: [
     AppService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: RlsInterceptor,
+    },
     {
       provide: APP_PIPE,
       useFactory: () =>
