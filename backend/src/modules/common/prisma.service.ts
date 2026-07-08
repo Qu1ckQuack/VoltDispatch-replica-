@@ -9,9 +9,7 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   readonly raw: PrismaClient;
 
   constructor(configService: ConfigService) {
-    const connectionString =
-      configService.get<string>('DATABASE_URL_RUNTIME') ??
-      configService.getOrThrow<string>('DATABASE_URL');
+    const connectionString = configService.getOrThrow<string>('DATABASE_URL');
     const adapter = new PrismaPg({ connectionString });
     this.raw = new PrismaClient({ adapter });
   }

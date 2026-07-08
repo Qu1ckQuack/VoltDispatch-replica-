@@ -4,7 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useEffect } from 'react'
 
-const PUBLIC_ROUTES = ['/login', '/magic-link', '/']
+const PUBLIC_ROUTES = ['/login', '/register', '/magic-link', '/']
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()

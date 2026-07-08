@@ -467,7 +467,7 @@ export class WorkOrdersService {
   async cancel(id: string, user: AuthenticatedUser, note?: string | null) {
     const order = await this.findById(id, user);
 
-    const allowedRoles = CANCEL_RULES[order.status];
+    const allowedRoles = CANCEL_RULES[order.status as WorkOrderStatus];
     if (!allowedRoles || !allowedRoles.includes(user.role)) {
       throw new ForbiddenException(
         `Cannot cancel work order in status ${order.status} as role ${user.role}`,

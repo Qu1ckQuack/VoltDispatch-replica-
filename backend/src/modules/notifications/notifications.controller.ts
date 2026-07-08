@@ -28,7 +28,7 @@ export class NotificationsController {
 
   @Get(':id')
   @Roles('HQ', 'COORDINATOR')
-  findById(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  findById(@Param('id') id: string) {
     return this.notificationsService.findById(id);
   }
 }

@@ -26,6 +26,7 @@ import { RedisService } from '../redis/redis.service.js';
 import { RoomManagerService } from './services/room-manager.service.js';
 import { PositionRateLimiterService } from './services/position-rate-limiter.service.js';
 import { WorkOrderStatus } from '../../generated/prisma/enums.js';
+import { rlsStorage, type RlsUser } from '../common/services/rls-context.js';
 
 const LOCATION_UPDATES_CHANNEL = 'location:updates';
 const HQ_ACTIVITIES_CHANNEL = 'hq:activities';
@@ -34,6 +35,7 @@ const MIN_DISTANCE_M = 50;
 
 interface ClientData {
   user: WsAuthenticatedUser;
+  rlsUser: RlsUser;
   lastProcessedPos?: { lat: number; lng: number };
 }
 
@@ -117,11 +119,12 @@ export class LocationGateway
       const origin = (request.headers['origin'] as string) ?? '';
       const user = await this.wsAuthService.verify(token, origin);
 
-      this.clientData.set(client, { user });
+      const rlsUser = await this.buildRlsUser(user);
+      this.clientData.set(client, { user, rlsUser });
       this.rateLimiter.init(client);
 
       this.send(client, 'connected', { userId: user.id, role: user.role });
-      await this.autoSubscribe(client, user);
+      await rlsStorage.run(rlsUser, () => this.autoSubscribe(client, user));
       this.logger.debug(`WS connected: ${user.role}:${user.id}`);
     } catch (err) {
       this.logger.warn(`WS connection rejected: ${(err as Error).message}`);
@@ -136,7 +139,9 @@ export class LocationGateway
 
       // Sync last-known position to DB on disconnect.
       if (data.user.role === 'TECHNICIAN' && data.user.profileId) {
-        await this.syncLastPositionToDb(data.user.profileId);
+        await rlsStorage.run(data.rlsUser, () =>
+          this.syncLastPositionToDb(data.user.profileId!),
+        );
       }
     }
     this.clientData.delete(client);
@@ -236,7 +241,10 @@ export class LocationGateway
       return;
     }
 
-    const allowed = await this.validateRoomAccess(data.user, payload.room);
+    const room = payload.room;
+    const allowed = await rlsStorage.run(data.rlsUser, () =>
+      this.validateRoomAccess(data.user, room),
+    );
     if (!allowed) {
       this.send(client, 'error', { message: 'Access denied to this room' });
       return;
@@ -293,6 +301,52 @@ export class LocationGateway
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
+  private async buildRlsUser(user: WsAuthenticatedUser): Promise<RlsUser> {
+    const rlsUser: RlsUser = {
+      userId: user.id,
+      role: user.role,
+    };
+
+    if (user.role === 'CUSTOMER') {
+      rlsUser.customerId = user.id;
+    } else if (user.profileId) {
+      rlsUser.profileId = user.profileId;
+    }
+
+    if (user.role === 'COORDINATOR') {
+      const dept = await this.resolveCoordinatorDepartment(user.id);
+      if (dept) rlsUser.department = dept;
+    }
+
+    return rlsUser;
+  }
+
+  private async resolveCoordinatorDepartment(
+    userId: string,
+  ): Promise<string | undefined> {
+    try {
+      const rows = await this.prisma.raw.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(
+          `SELECT set_config('app.user_id', $1, true)`,
+          [userId],
+        );
+        await tx.$executeRawUnsafe(
+          `SELECT set_config('app.user_role', 'COORDINATOR', true)`,
+        );
+        return tx.$queryRawUnsafe<{ department: string }[]>(
+          'SELECT department FROM coordinators WHERE user_id = $1::uuid LIMIT 1',
+          [userId],
+        );
+      });
+      return rows[0]?.department;
+    } catch (err) {
+      this.logger.warn(
+        `Failed to resolve department for coordinator ${userId}: ${(err as Error).message}`,
+      );
+      return undefined;
+    }
+  }
+
   private async autoSubscribe(
     client: WebSocket,
     user: WsAuthenticatedUser,
@@ -311,7 +365,7 @@ export class LocationGateway
             },
             select: { id: true },
           });
-          orderIds = active.map((o) => o.id);
+          orderIds = active.map((o: { id: string }) => o.id);
         }
         break;
       case 'CUSTOMER': {
@@ -319,7 +373,7 @@ export class LocationGateway
           where: { customerId: user.id },
           select: { id: true },
         });
-        orderIds = orders.map((o) => o.id);
+        orderIds = orders.map((o: { id: string }) => o.id);
         break;
       }
       case 'COORDINATOR': {
@@ -337,7 +391,7 @@ export class LocationGateway
             },
             select: { id: true },
           });
-          orderIds = orders.map((o) => o.id);
+          orderIds = orders.map((o: { id: string }) => o.id);
         }
         break;
       }
@@ -351,7 +405,7 @@ export class LocationGateway
           select: { id: true },
           take: 50,
         });
-        orderIds = orders.map((o) => o.id);
+        orderIds = orders.map((o: { id: string }) => o.id);
 
         this.roomManager.subscribe(client, 'room:hq:activities');
         break;

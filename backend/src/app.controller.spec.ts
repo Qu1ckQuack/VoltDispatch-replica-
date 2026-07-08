@@ -2,9 +2,9 @@ jest.mock('./modules/common/prisma.service.js', () => ({
   PrismaService: class {},
 }));
 
-import { Test, TestingModule } from '@nestjs/testing.';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { Test, TestingModule } from '@nestjs/testing';
+import { AppController } from './app.controller.js';
+import { AppService } from './app.service.js';
 import { PrismaService } from './modules/common/prisma.service.js';
 
 describe('AppController', () => {

@@ -82,7 +82,7 @@ export class MediaService {
     });
 
     const signed = await Promise.all(
-      images.map(async (img) => ({
+      images.map(async (img: { id: string; url: string; type: ImageType; workOrderId: string; uploadedBy: string | null; uploadedAt: Date }) => ({
         ...img,
         url: await this.s3.getSignedUrl(img.url),
       })),

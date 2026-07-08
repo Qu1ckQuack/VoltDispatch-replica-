@@ -66,7 +66,7 @@ export class CustomersService {
 
     if (user && user.role === UserRole.DEALER && user.profileId) {
       const hasAccess = customer.workOrders.some(
-        (wo) => wo.dealerId === user.profileId,
+        (wo: { dealerId: string }) => wo.dealerId === user.profileId,
       );
       if (!hasAccess) {
         throw new NotFoundException('Customer not found');
