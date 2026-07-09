@@ -1,12 +1,21 @@
 'use client'
 
-import { useTechnicians } from '@/lib/hooks/use-technicians'
+import { useEffect, useState } from 'react'
 import { useLocationSocket } from '@/lib/hooks/use-location-socket'
+import { techniciansApi, type TechnicianMapItem } from '@/lib/api/technicians'
+import { useAuthStore } from '@/lib/stores/auth-store'
 import { TechnicianMap } from '@/components/map/technician-map'
 
 export default function LiveMapPage() {
-  const { data: technicians = [], isLoading } = useTechnicians()
+  const user = useAuthStore((s) => s.user)
+  const [technicians, setTechnicians] = useState<TechnicianMapItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const { positions } = useLocationSocket()
+
+  useEffect(() => {
+    if (!user) return
+    techniciansApi.mapList(user.role).then(setTechnicians).finally(() => setIsLoading(false))
+  }, [user])
 
   return (
     <div className="flex h-full flex-col space-y-4">

@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { WorkOrderStatus } from '../../generated/prisma/enums.js';
 import { DEFAULT_PAGE_LIMIT, SEVEN_DAYS_MS } from '../common/constants.js';
+import type { AuthenticatedUser } from '../common/services/scoping.service.js';
 import type { SummaryQueryDto } from './dto/summary-query.dto.js';
 
 @Injectable()
@@ -10,37 +12,48 @@ export class ReportingService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async getOverview() {
+  async getOverview(currentUser: AuthenticatedUser) {
+    const isTech = currentUser.role === 'TECHNICIAN';
+    const techId = isTech ? currentUser.profileId : null;
+
     const queries = [
-      this.getAggregatedMetrics().catch((err) => {
+      this.getAggregatedMetrics(techId).catch((err) => {
         this.logger.error(`Failed to fetch metrics: ${(err as Error).message}`);
         return null;
       }),
-      this.getDailyByStatusRaw().catch((err) => {
-        this.logger.error(
-          `Failed to fetch daily by status: ${(err as Error).message}`,
-        );
-        return null;
-      }),
-      this.getPendingLast7Days().catch((err) => {
+      ...(isTech
+        ? [Promise.resolve(null as null)]
+        : [
+            this.getDailyByStatusRaw().catch((err) => {
+              this.logger.error(
+                `Failed to fetch daily by status: ${(err as Error).message}`,
+              );
+              return null;
+            }),
+          ]),
+      this.getPendingLast7Days(techId).catch((err) => {
         this.logger.error(
           `Failed to fetch pending orders: ${(err as Error).message}`,
         );
         return null;
       }),
-      this.getRecentlyCompleted().catch((err) => {
+      this.getRecentlyCompleted(techId).catch((err) => {
         this.logger.error(
           `Failed to fetch recently completed: ${(err as Error).message}`,
         );
         return null;
       }),
-      this.getTechnicianWorkload().catch((err) => {
-        this.logger.error(
-          `Failed to fetch technician workload: ${(err as Error).message}`,
-        );
-        return null;
-      }),
-      this.getRecentActivities().catch((err) => {
+      ...(isTech
+        ? [Promise.resolve(null as null)]
+        : [
+            this.getTechnicianWorkload().catch((err) => {
+              this.logger.error(
+                `Failed to fetch technician workload: ${(err as Error).message}`,
+              );
+              return null;
+            }),
+          ]),
+      this.getRecentActivities(techId).catch((err) => {
         this.logger.error(
           `Failed to fetch recent activities: ${(err as Error).message}`,
         );
@@ -73,7 +86,31 @@ export class ReportingService {
     };
   }
 
-  private async getAggregatedMetrics() {
+  private async getAggregatedMetrics(techId?: string | null) {
+    if (techId) {
+      const rows = await this.prisma.$queryRaw<
+        { total_orders: bigint; pending_orders: bigint; in_process_orders: bigint; completed_today: bigint; sla_breached: bigint; techs_online: bigint; avg_rating: number | null }[]
+      >`
+        SELECT
+          (SELECT COUNT(*)::bigint FROM work_orders WHERE technician_id = ${techId}::uuid) AS total_orders,
+          (SELECT COUNT(*)::bigint FROM work_orders WHERE technician_id = ${techId}::uuid AND status IN ('REQUESTED','ASSIGNED','ACCEPTED')) AS pending_orders,
+          (SELECT COUNT(*)::bigint FROM work_orders WHERE technician_id = ${techId}::uuid AND status IN ('EN_ROUTE','IN_PROGRESS','ISSUE')) AS in_process_orders,
+          (SELECT COUNT(*)::bigint FROM work_orders WHERE technician_id = ${techId}::uuid AND status = 'COMPLETED' AND completed_at::date = CURRENT_DATE) AS completed_today,
+          (SELECT COUNT(*)::bigint FROM work_orders WHERE technician_id = ${techId}::uuid AND status NOT IN ('COMPLETED','CANCELLED') AND sla_deadline < NOW()) AS sla_breached,
+          (SELECT CASE WHEN EXISTS (SELECT 1 FROM technicians WHERE id = ${techId}::uuid AND status = 'AVAILABLE') THEN 1 ELSE 0 END) AS techs_online,
+          (SELECT AVG(score)::numeric(3,2) FROM ratings WHERE technician_id = ${techId}::uuid) AS avg_rating
+      `;
+      return {
+        totalOrders: Number(rows[0].total_orders),
+        pendingOrders: Number(rows[0].pending_orders),
+        inProcessOrders: Number(rows[0].in_process_orders),
+        completedToday: Number(rows[0].completed_today),
+        slaBreached: Number(rows[0].sla_breached),
+        techniciansOnline: Number(rows[0].techs_online),
+        avgRating: rows[0].avg_rating ? Number(rows[0].avg_rating) : null,
+      };
+    }
+
     const rows = await this.prisma.$queryRaw<
       {
         total_orders: bigint;
@@ -121,13 +158,14 @@ export class ReportingService {
     return rows.map((r) => ({ status: r.status, count: Number(r.count) }));
   }
 
-  private async getPendingLast7Days() {
+  private async getPendingLast7Days(techId?: string | null) {
     return this.prisma.workOrder.findMany({
       where: {
         createdAt: { gte: new Date(Date.now() - SEVEN_DAYS_MS) },
         status: {
           notIn: [WorkOrderStatus.COMPLETED, WorkOrderStatus.CANCELLED],
         },
+        ...(techId ? { technicianId: techId } : {}),
       },
       include: {
         customer: { select: { id: true, name: true } },
@@ -139,9 +177,12 @@ export class ReportingService {
     });
   }
 
-  private async getRecentlyCompleted() {
+  private async getRecentlyCompleted(techId?: string | null) {
     return this.prisma.workOrder.findMany({
-      where: { status: WorkOrderStatus.COMPLETED },
+      where: {
+        status: WorkOrderStatus.COMPLETED,
+        ...(techId ? { technicianId: techId } : {}),
+      },
       include: {
         customer: { select: { id: true, name: true } },
         dealer: { select: { id: true, companyName: true } },
@@ -176,7 +217,11 @@ export class ReportingService {
     }));
   }
 
-  private async getRecentActivities() {
+  private async getRecentActivities(techId?: string | null) {
+    const whereClause = techId
+      ? Prisma.sql`WHERE wo.technician_id = ${techId}::uuid`
+      : Prisma.empty;
+
     const rows = await this.prisma.$queryRaw<
       {
         id: string;
@@ -195,7 +240,9 @@ export class ReportingService {
         u.email AS changed_by,
         h.changed_at
       FROM work_order_status_history h
+      JOIN work_orders wo ON wo.id = h.work_order_id
       LEFT JOIN users u ON u.id = h.changed_by_user_id
+      ${whereClause}
       ORDER BY h.changed_at DESC
       LIMIT 50
     `;

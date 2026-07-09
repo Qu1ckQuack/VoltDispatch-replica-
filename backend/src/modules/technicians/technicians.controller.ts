@@ -32,6 +32,12 @@ export class TechniciansController {
     return this.techniciansService.findAll();
   }
 
+  @Get('map')
+  @Roles('HQ', 'COORDINATOR', 'TECHNICIAN')
+  findForMap(@CurrentUser() user: AuthenticatedUser) {
+    return this.techniciansService.findForMap(user);
+  }
+
   @Get('me')
   @Roles('TECHNICIAN')
   findMyProfile(@CurrentUser() user: AuthenticatedUser) {

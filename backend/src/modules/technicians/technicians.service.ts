@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../common/prisma.service.js';
 import { ProfileBaseService } from '../common/services/profile-base.service.js';
 import { UsersService } from '../users/users.service.js';
+import type { AuthenticatedUser } from '../common/services/scoping.service.js';
 import { CreateTechnicianDto } from './dto/create-technician.dto.js';
 import { UpdateTechnicianDto } from './dto/update-technician.dto.js';
 import { UpdateStatusDto } from './dto/update-status.dto.js';
@@ -52,6 +53,30 @@ export class TechniciansService extends ProfileBaseService {
       where: { id },
       data: dto,
       include: { user: true },
+    });
+  }
+
+  async findForMap(currentUser: AuthenticatedUser) {
+    const isTechnician = currentUser.role === 'TECHNICIAN';
+
+    if (isTechnician && !currentUser.profileId) {
+      return [];
+    }
+
+    const where = isTechnician ? { id: currentUser.profileId! } : {};
+
+    return this.prisma.technician.findMany({
+      where,
+      select: {
+        id: true,
+        userId: true,
+        status: true,
+        lastLat: true,
+        lastLng: true,
+        district: true,
+        subDistrict: true,
+        user: { select: { email: true } },
+      },
     });
   }
 

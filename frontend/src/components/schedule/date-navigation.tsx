@@ -30,7 +30,7 @@ export function DateNavigation({ date, onPrev, onNext, onToday }: DateNavigation
           <ChevronLeft size={18} />
         </button>
         <span className="min-w-[180px] text-center text-sm font-medium text-ink-slate">
-          {date.toLocaleDateString(undefined, {
+          {date.toLocaleDateString('en-US', {
             weekday: 'long',
             month: 'long',
             day: 'numeric',
