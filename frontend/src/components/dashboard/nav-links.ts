@@ -7,6 +7,7 @@ import {
   BarChart3,
   Settings,
   MapPin,
+  UserRound,
   type LucideIcon,
 } from 'lucide-react'
 import { UserRole } from '@/lib/api/types'
@@ -38,16 +39,22 @@ export const navLinks: NavLink[] = [
     roles: [UserRole.HQ, UserRole.DEALER, UserRole.COORDINATOR, UserRole.TECHNICIAN],
   },
   {
-    label: 'Customers',
-    href: '/customers',
-    icon: Users,
-    roles: [UserRole.HQ, UserRole.DEALER],
+    label: 'People',
+    href: '/people',
+    icon: UserRound,
+    roles: [UserRole.HQ],
   },
   {
     label: 'Technicians',
     href: '/technicians',
     icon: Wrench,
-    roles: [UserRole.HQ, UserRole.COORDINATOR],
+    roles: [UserRole.COORDINATOR],
+  },
+  {
+    label: 'Customers',
+    href: '/customers',
+    icon: Users,
+    roles: [UserRole.DEALER],
   },
   {
     label: 'Live Map',

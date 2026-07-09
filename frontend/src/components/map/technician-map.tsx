@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { useEffect, useState, useMemo } from 'react'
-import type { Technician } from '@/lib/api/types'
+import type { TechnicianMapItem } from '@/lib/api/technicians'
 import type { TechnicianPosition } from './map-utils'
 import { defaultCenter } from './map-utils'
 
@@ -12,7 +12,7 @@ const MapContent = dynamic(
 )
 
 export interface TechnicianMapProps {
-  technicians: Technician[]
+  technicians: TechnicianMapItem[]
   positions?: Map<string, TechnicianPosition>
   height?: string
   showLoadingOverlay?: boolean

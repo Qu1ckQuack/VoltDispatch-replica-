@@ -16,6 +16,13 @@ interface WorkOrderTableProps {
   onAssign: (order: WorkOrder) => void
   onReschedule: (order: WorkOrder) => void
   onCancel: (order: WorkOrder) => void
+  onAccept?: (order: WorkOrder) => void
+  onDecline?: (order: WorkOrder) => void
+  onStartTravel?: (order: WorkOrder) => void
+  onStartWork?: (order: WorkOrder) => void
+  onIssue?: (order: WorkOrder) => void
+  onResolveIssue?: (order: WorkOrder) => void
+  onComplete?: (order: WorkOrder) => void
 }
 
 function canAction(order: WorkOrder, role: string): string[] {
@@ -58,6 +65,13 @@ export function WorkOrderTable({
   onAssign,
   onReschedule,
   onCancel,
+  onAccept,
+  onDecline,
+  onStartTravel,
+  onStartWork,
+  onIssue,
+  onResolveIssue,
+  onComplete,
 }: WorkOrderTableProps) {
   const user = useAuthStore((s) => s.user)
   const role = user?.role ?? ''
@@ -84,12 +98,68 @@ export function WorkOrderTable({
               Assign
             </button>
           )}
+          {actions.includes('accept') && (
+            <button
+              onClick={() => onAccept?.(order)}
+              className="rounded-md bg-assurance-green px-2 py-1 text-xs text-white hover:bg-assurance-green/90"
+            >
+              Accept
+            </button>
+          )}
+          {actions.includes('decline') && (
+            <button
+              onClick={() => onDecline?.(order)}
+              className="rounded-md border border-signal-red/30 px-2 py-1 text-xs text-signal-red hover:bg-signal-red/10"
+            >
+              Decline
+            </button>
+          )}
           {actions.includes('reschedule') && (
             <button
               onClick={() => onReschedule(order)}
               className="rounded-md border border-border px-2 py-1 text-xs text-ink-slate hover:bg-muted"
             >
               Reschedule
+            </button>
+          )}
+          {actions.includes('start-travel') && (
+            <button
+              onClick={() => onStartTravel?.(order)}
+              className="rounded-md bg-trust-blue px-2 py-1 text-xs text-white hover:bg-trust-blue/90"
+            >
+              En Route
+            </button>
+          )}
+          {actions.includes('start-work') && (
+            <button
+              onClick={() => onStartWork?.(order)}
+              className="rounded-md bg-trust-blue px-2 py-1 text-xs text-white hover:bg-trust-blue/90"
+            >
+              Start Work
+            </button>
+          )}
+          {actions.includes('issue') && (
+            <button
+              onClick={() => onIssue?.(order)}
+              className="rounded-md border border-warm-sand/30 px-2 py-1 text-xs text-warm-sand hover:bg-warm-sand/10"
+            >
+              Report Issue
+            </button>
+          )}
+          {actions.includes('resolve-issue') && (
+            <button
+              onClick={() => onResolveIssue?.(order)}
+              className="rounded-md bg-assurance-green px-2 py-1 text-xs text-white hover:bg-assurance-green/90"
+            >
+              Resolve Issue
+            </button>
+          )}
+          {actions.includes('complete') && (
+            <button
+              onClick={() => onComplete?.(order)}
+              className="rounded-md bg-assurance-green px-2 py-1 text-xs text-white hover:bg-assurance-green/90"
+            >
+              Complete
             </button>
           )}
           {actions.includes('cancel') && (

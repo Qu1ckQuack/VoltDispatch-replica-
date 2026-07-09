@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { X, Plus } from 'lucide-react'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useCustomers } from '@/lib/hooks/use-customers'
 import { useDevices } from '@/lib/hooks/use-devices'
+import { customersApi, devicesApi } from '@/lib/api'
 import { UserRole } from '@/lib/api/types'
 import type { CreateWorkOrderDto } from '@/lib/api/types'
 
@@ -16,8 +17,8 @@ interface CreateOrderModalProps {
 
 export function CreateOrderModal({ onSubmit, onClose, loading }: CreateOrderModalProps) {
   const user = useAuthStore((s) => s.user)
-  const { data: customers = [] } = useCustomers()
-  const { data: devices = [] } = useDevices()
+  const { data: customers = [], refetch: refetchCustomers } = useCustomers()
+  const { data: devices = [], refetch: refetchDevices } = useDevices()
 
   const [customerId, setCustomerId] = useState('')
   const [deviceId, setDeviceId] = useState('')
@@ -27,11 +28,64 @@ export function CreateOrderModal({ onSubmit, onClose, loading }: CreateOrderModa
   const [department, setDepartment] = useState('')
   const [slaDeadline, setSlaDeadline] = useState('')
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [showNewCustomer, setShowNewCustomer] = useState(false)
+  const [newCustomerName, setNewCustomerName] = useState('')
+  const [newCustomerPhone, setNewCustomerPhone] = useState('')
+  const [newCustomerEmail, setNewCustomerEmail] = useState('')
+  const [newCustomerAddress, setNewCustomerAddress] = useState('')
+  const [newCustomerSubDistrict, setNewCustomerSubDistrict] = useState('')
+  const [creatingCustomer, setCreatingCustomer] = useState(false)
+
+  const [showNewDevice, setShowNewDevice] = useState(false)
+  const [newModel, setNewModel] = useState('')
+  const [newSerial, setNewSerial] = useState('')
+  const [newIp, setNewIp] = useState('')
+  const [creatingDevice, setCreatingDevice] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    let finalCustomerId = customerId
+    let finalDeviceId = deviceId
+
+    if (showNewCustomer) {
+      setCreatingCustomer(true)
+      try {
+        const customer = await customersApi.create({
+          name: newCustomerName,
+          phone: newCustomerPhone || undefined,
+          email: newCustomerEmail || undefined,
+          address: newCustomerAddress,
+          subDistrict: newCustomerSubDistrict,
+        })
+        finalCustomerId = customer.id
+        await refetchCustomers()
+      } catch {
+        setCreatingCustomer(false)
+        return
+      }
+      setCreatingCustomer(false)
+    }
+
+    if (showNewDevice) {
+      setCreatingDevice(true)
+      try {
+        const device = await devicesApi.create({
+          model: newModel,
+          serialNumber: newSerial,
+          ...(newIp ? { ipAddress: newIp } : {}),
+        })
+        finalDeviceId = device.id
+        await refetchDevices()
+      } catch {
+        setCreatingDevice(false)
+        return
+      }
+      setCreatingDevice(false)
+    }
+
     const data: CreateWorkOrderDto = {
-      customerId,
-      deviceId,
+      customerId: finalCustomerId,
+      deviceId: finalDeviceId,
       subDistrict,
       priority,
       ...(appointmentDate ? { appointmentDate: new Date(appointmentDate).toISOString() } : {}),
@@ -57,40 +111,131 @@ export function CreateOrderModal({ onSubmit, onClose, loading }: CreateOrderModa
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-ink-slate">
-                Customer
-              </label>
-              <select
-                required
-                value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
-                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
-              >
-                <option value="">Select customer...</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="block text-sm font-medium text-ink-slate">
+                  Customer
+                </label>
+                <button
+                  type="button"
+                  onClick={() => { setShowNewCustomer(!showNewCustomer); setCustomerId('') }}
+                  className="flex items-center gap-1 text-xs text-trust-blue hover:underline"
+                >
+                  <Plus size={14} />
+                  {showNewCustomer ? 'Pick existing' : 'New customer'}
+                </button>
+              </div>
+              {showNewCustomer ? (
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    required
+                    value={newCustomerName}
+                    onChange={(e) => setNewCustomerName(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate placeholder:text-muted-foreground focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
+                    placeholder="Customer name"
+                  />
+                  <input
+                    type="tel"
+                    value={newCustomerPhone}
+                    onChange={(e) => setNewCustomerPhone(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate placeholder:text-muted-foreground focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
+                    placeholder="Phone (optional)"
+                  />
+                  <input
+                    type="email"
+                    value={newCustomerEmail}
+                    onChange={(e) => setNewCustomerEmail(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate placeholder:text-muted-foreground focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
+                    placeholder="Email (optional)"
+                  />
+                  <input
+                    type="text"
+                    required
+                    value={newCustomerAddress}
+                    onChange={(e) => setNewCustomerAddress(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate placeholder:text-muted-foreground focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
+                    placeholder="Address"
+                  />
+                  <input
+                    type="text"
+                    required
+                    value={newCustomerSubDistrict}
+                    onChange={(e) => setNewCustomerSubDistrict(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate placeholder:text-muted-foreground focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
+                    placeholder="Sub-district"
+                  />
+                </div>
+              ) : (
+                <select
+                  required
+                  value={customerId}
+                  onChange={(e) => setCustomerId(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
+                >
+                  <option value="">Select customer...</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-ink-slate">
-                Device
-              </label>
-              <select
-                required
-                value={deviceId}
-                onChange={(e) => setDeviceId(e.target.value)}
-                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
-              >
-                <option value="">Select device...</option>
-                {devices.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.model} ({d.serialNumber.slice(0, 8)})
-                  </option>
-                ))}
-              </select>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="block text-sm font-medium text-ink-slate">
+                  Device
+                </label>
+                <button
+                  type="button"
+                  onClick={() => { setShowNewDevice(!showNewDevice); setDeviceId('') }}
+                  className="flex items-center gap-1 text-xs text-trust-blue hover:underline"
+                >
+                  <Plus size={14} />
+                  {showNewDevice ? 'Pick existing' : 'New device'}
+                </button>
+              </div>
+              {showNewDevice ? (
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    required
+                    value={newModel}
+                    onChange={(e) => setNewModel(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate placeholder:text-muted-foreground focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
+                    placeholder="Model (e.g. Tesla Wall Connector)"
+                  />
+                  <input
+                    type="text"
+                    required
+                    value={newSerial}
+                    onChange={(e) => setNewSerial(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate placeholder:text-muted-foreground focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
+                    placeholder="Serial number"
+                  />
+                  <input
+                    type="text"
+                    value={newIp}
+                    onChange={(e) => setNewIp(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate placeholder:text-muted-foreground focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
+                    placeholder="IP address (optional)"
+                  />
+                </div>
+              ) : (
+                <select
+                  required
+                  value={deviceId}
+                  onChange={(e) => setDeviceId(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
+                >
+                  <option value="">Select device...</option>
+                  {devices.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.model} ({d.serialNumber.slice(0, 8)})
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 

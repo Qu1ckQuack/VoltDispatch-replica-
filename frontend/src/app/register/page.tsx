@@ -126,23 +126,9 @@ export default function RegisterPage() {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 className="w-full rounded-r-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate placeholder:text-muted-foreground focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
-                placeholder="812345678"
+                placeholder="080-710-8744"
               />
             </div>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-ink-slate">
-              Role
-            </label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as UserRole)}
-              className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
-            >
-              <option value={UserRole.TECHNICIAN}>Technician</option>
-              <option value={UserRole.DEALER}>Dealer</option>
-            </select>
           </div>
 
           <div>
@@ -175,18 +161,33 @@ export default function RegisterPage() {
             </div>
           )}
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-ink-slate">
-              Zip Code
-            </label>
-            <input
-              type="text"
-              required
-              value={zipCode}
-              onChange={(e) => setZipCode(e.target.value)}
-              className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate placeholder:text-muted-foreground focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
-              placeholder="e.g. 10110"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-ink-slate">
+                Role
+              </label>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as UserRole)}
+                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
+              >
+                <option value={UserRole.TECHNICIAN}>Technician</option>
+                <option value={UserRole.DEALER}>Dealer</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-ink-slate">
+                Zip Code
+              </label>
+              <input
+                type="text"
+                required
+                value={zipCode}
+                onChange={(e) => setZipCode(e.target.value)}
+                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate placeholder:text-muted-foreground focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
+                placeholder="e.g. 10110"
+              />
+            </div>
           </div>
 
           {role === UserRole.DEALER && (

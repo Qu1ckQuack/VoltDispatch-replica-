@@ -21,6 +21,15 @@ export function useWorkOrder(id: string) {
   })
 }
 
+export function useAcceptWorkOrder() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) =>
+      workOrdersApi.accept(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [WORK_ORDERS_KEY] }),
+  })
+}
+
 export function useAssignWorkOrder() {
   const qc = useQueryClient()
   return useMutation({

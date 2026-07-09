@@ -1,7 +1,7 @@
 import { api } from './client'
 import type { Technician, CreateTechnicianDto, UpdateTechnicianDto, UpdateStatusDto } from './types'
 
-export type TechnicianMapItem = Pick<Technician, 'id' | 'userId' | 'status' | 'lastLat' | 'lastLng' | 'district' | 'subDistrict'> & { user: { email: string } }
+export type TechnicianMapItem = Pick<Technician, 'id' | 'userId' | 'status' | 'lastLat' | 'lastLng' | 'lastLocationAt' | 'district' | 'subDistrict'> & { user: { email: string } }
 
 export const techniciansApi = {
   create: (data: CreateTechnicianDto) =>

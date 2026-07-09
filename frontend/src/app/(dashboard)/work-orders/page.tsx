@@ -9,6 +9,13 @@ import {
   useWorkOrders,
   useCreateWorkOrder,
   useCancelWorkOrder,
+  useAcceptWorkOrder,
+  useDeclineWorkOrder,
+  useStartTravelWorkOrder,
+  useStartWorkWorkOrder,
+  useIssueWorkOrder,
+  useResolveIssueWorkOrder,
+  useCompleteWorkOrder,
 } from '@/lib/hooks/use-work-orders'
 import { FilterBar } from '@/components/work-orders/filter-bar'
 import { WorkOrderTable } from '@/components/work-orders/work-order-table'
@@ -39,6 +46,13 @@ export default function WorkOrdersPage() {
   const { data: workOrdersRes, isLoading } = useWorkOrders(query)
   const createMutation = useCreateWorkOrder()
   const cancelMutation = useCancelWorkOrder()
+  const acceptMutation = useAcceptWorkOrder()
+  const declineMutation = useDeclineWorkOrder()
+  const startTravelMutation = useStartTravelWorkOrder()
+  const startWorkMutation = useStartWorkWorkOrder()
+  const issueMutation = useIssueWorkOrder()
+  const resolveIssueMutation = useResolveIssueWorkOrder()
+  const completeMutation = useCompleteWorkOrder()
 
   const handleCreate = useCallback(
     (data: CreateWorkOrderDto) => {
@@ -57,6 +71,43 @@ export default function WorkOrdersPage() {
     },
     [cancelTarget, cancelMutation],
   )
+
+  const handleAccept = useCallback((order: WorkOrder) => {
+    if (window.confirm(`Accept work order ${order.id.slice(0, 8)}?`)) {
+      acceptMutation.mutate({ id: order.id })
+    }
+  }, [acceptMutation])
+
+  const handleDecline = useCallback((order: WorkOrder) => {
+    if (window.confirm(`Decline work order ${order.id.slice(0, 8)}?`)) {
+      declineMutation.mutate({ id: order.id })
+    }
+  }, [declineMutation])
+
+  const handleStartTravel = useCallback((order: WorkOrder) => {
+    startTravelMutation.mutate({ id: order.id })
+  }, [startTravelMutation])
+
+  const handleStartWork = useCallback((order: WorkOrder) => {
+    startWorkMutation.mutate({ id: order.id })
+  }, [startWorkMutation])
+
+  const handleIssue = useCallback((order: WorkOrder) => {
+    const note = window.prompt('Describe the issue:')
+    if (note !== null) {
+      issueMutation.mutate({ id: order.id, note: note || undefined })
+    }
+  }, [issueMutation])
+
+  const handleResolveIssue = useCallback((order: WorkOrder) => {
+    resolveIssueMutation.mutate({ id: order.id })
+  }, [resolveIssueMutation])
+
+  const handleComplete = useCallback((order: WorkOrder) => {
+    if (window.confirm(`Mark work order ${order.id.slice(0, 8)} as completed?`)) {
+      completeMutation.mutate({ id: order.id })
+    }
+  }, [completeMutation])
 
   const handleClearFilters = useCallback(() => {
     setStatus('')
@@ -109,6 +160,13 @@ export default function WorkOrdersPage() {
         onAssign={() => {}}
         onReschedule={() => {}}
         onCancel={setCancelTarget}
+        onAccept={handleAccept}
+        onDecline={handleDecline}
+        onStartTravel={handleStartTravel}
+        onStartWork={handleStartWork}
+        onIssue={handleIssue}
+        onResolveIssue={handleResolveIssue}
+        onComplete={handleComplete}
       />
 
       {showCreate && (

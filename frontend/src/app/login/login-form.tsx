@@ -86,19 +86,21 @@ export function LoginForm() {
             placeholder="Enter your password"
           />
         </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-lg bg-muted-foreground/80 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-muted-foreground disabled:opacity-50"
-        >
-          {loading ? 'Signing in...' : 'Sign in'}
-        </button>
-        <Link
-          href="/register"
-          className="block w-full rounded-lg bg-trust-blue px-4 py-1.5 text-center text-sm font-medium text-white transition-colors hover:bg-trust-blue/90"
-        >
-          Create account
-        </Link>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="submit"
+            disabled={loading}
+            className="rounded-lg bg-muted-foreground/80 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-muted-foreground disabled:opacity-50"
+          >
+            {loading ? 'Signing in...' : 'Sign in'}
+          </button>
+          <Link
+            href="/register"
+            className="block rounded-lg bg-trust-blue px-4 py-1.5 text-center text-sm font-medium text-white transition-colors hover:bg-trust-blue/90"
+          >
+            Create account
+          </Link>
+        </div>
         <div className="text-center">
           <button
             type="button"
