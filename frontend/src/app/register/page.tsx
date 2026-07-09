@@ -19,9 +19,21 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
 
+  const passwordErrors = [
+    { key: 'length', label: '8 or more characters', pass: password.length >= 8 },
+    { key: 'letter', label: 'At least 1 upper or lowercase letter', pass: /[A-Za-z]/.test(password) },
+    { key: 'number', label: 'At least 1 number', pass: /[0-9]/.test(password) },
+    { key: 'special', label: 'At least 1 special character', pass: /[^A-Za-z0-9]/.test(password) },
+  ]
+  const passwordValid = passwordErrors.every((r) => r.pass)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    if (!passwordValid) {
+      setError('Password does not meet the requirements below')
+      return
+    }
     setLoading(true)
     try {
       await authApi.register({
@@ -104,12 +116,24 @@ export default function RegisterPage() {
             <input
               type="password"
               required
-              minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate placeholder:text-muted-foreground focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
-              placeholder="Min 8 characters"
+              placeholder="e.g. P@ssw0rd!"
             />
+            {password.length > 0 && (
+              <div className="mt-2 space-y-1 rounded-lg bg-muted/30 px-3 py-2 text-xs">
+                <p className="font-medium text-muted-foreground">Your password must have:</p>
+                {passwordErrors.map((rule) => (
+                  <p
+                    key={rule.key}
+                    className={rule.pass ? 'text-assurance-green' : 'text-signal-red'}
+                  >
+                    {rule.pass ? '✓' : '✗'} {rule.label}
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>
@@ -131,35 +155,36 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-ink-slate">
-              District
-            </label>
-            <input
-              type="text"
-              required
-              value={district}
-              onChange={(e) => setDistrict(e.target.value)}
-              className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate placeholder:text-muted-foreground focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
-              placeholder="e.g. Watthana"
-            />
-          </div>
-
-          {role === UserRole.TECHNICIAN && (
-            <div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className={role !== UserRole.TECHNICIAN ? 'col-span-2' : ''}>
               <label className="mb-1 block text-sm font-medium text-ink-slate">
-                Sub-district
+                District
               </label>
               <input
                 type="text"
                 required
-                value={subDistrict}
-                onChange={(e) => setSubDistrict(e.target.value)}
+                value={district}
+                onChange={(e) => setDistrict(e.target.value)}
                 className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate placeholder:text-muted-foreground focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
-                placeholder="e.g. Khlong Toei"
+                placeholder="e.g. Watthana"
               />
             </div>
-          )}
+            {role === UserRole.TECHNICIAN && (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-ink-slate">
+                  Sub-district
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={subDistrict}
+                  onChange={(e) => setSubDistrict(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate placeholder:text-muted-foreground focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
+                  placeholder="e.g. Khlong Toei"
+                />
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -169,8 +194,7 @@ export default function RegisterPage() {
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as UserRole)}
-                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"
-              >
+                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink-slate focus:border-trust-blue focus:outline-none focus:ring-1 focus:ring-trust-blue"              >
                 <option value={UserRole.TECHNICIAN}>Technician</option>
                 <option value={UserRole.DEALER}>Dealer</option>
               </select>

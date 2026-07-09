@@ -7,7 +7,7 @@ import { ConnectionIndicator } from '@/components/shared/connection-indicator'
 
 export function Header() {
   const router = useRouter()
-  const user = useAuthStore((s) => s.user)
+  const { user, hasHydrated } = useAuthStore()
   const logout = useAuthStore((s) => s.logout)
 
   const handleLogout = () => {
@@ -25,12 +25,16 @@ export function Header() {
 
       <div className="h-5 w-px bg-border" />
 
-      <div className="flex items-center gap-2 text-sm">
-        <span className="text-muted-foreground">{user?.email}</span>
-        <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
-          {user?.role}
-        </span>
-      </div>
+      {hasHydrated && user ? (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">{user.email}</span>
+          <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+            {user.role}
+          </span>
+        </div>
+      ) : (
+        <div className="h-5" />
+      )}
 
       <button
         onClick={handleLogout}

@@ -47,7 +47,7 @@ export const navLinks: NavLink[] = [
   {
     label: 'Technicians',
     href: '/technicians',
-    icon: Wrench,
+    icon: Users,
     roles: [UserRole.COORDINATOR],
   },
   {

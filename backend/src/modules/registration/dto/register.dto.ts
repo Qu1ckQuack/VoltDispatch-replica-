@@ -4,7 +4,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  MinLength,
+  Matches,
 } from 'class-validator';
 import { UserRole } from '../../../generated/prisma/enums.js';
 
@@ -13,7 +13,10 @@ export class RegisterDto {
   email!: string;
 
   @IsString()
-  @MinLength(8)
+  @Matches(
+    /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/,
+    { message: 'Password must be at least 8 characters with 1 letter, 1 number, and 1 special character' },
+  )
   password!: string;
 
   @IsString()

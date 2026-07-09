@@ -2,24 +2,6 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { UserPayload } from '@/lib/api/types'
 
-interface PersistedAuthState {
-  accessToken: string | null
-  user: UserPayload | null
-}
-
-function getPersistedState(): PersistedAuthState | null {
-  try {
-    const raw = sessionStorage.getItem('volt-dispatch-auth')
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    return parsed?.state ?? null
-  } catch {
-    return null
-  }
-}
-
-const persisted = getPersistedState()
-
 interface AuthState {
   accessToken: string | null
   refreshToken: string | null
@@ -35,11 +17,11 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      accessToken: persisted?.accessToken ?? null,
+      accessToken: null,
       refreshToken: null,
-      user: persisted?.user ?? null,
-      isAuthenticated: !!persisted?.accessToken,
-      hasHydrated: true,
+      user: null,
+      isAuthenticated: false,
+      hasHydrated: false,
       login: (accessToken, refreshToken, user) =>
         set({ accessToken, refreshToken, user, isAuthenticated: true }),
       logout: () =>
@@ -50,6 +32,9 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'volt-dispatch-auth',
       storage: createJSONStorage(() => sessionStorage),
+      onRehydrateStorage: () => () => {
+        useAuthStore.setState({ hasHydrated: true })
+      },
     },
   ),
 )

@@ -11,8 +11,8 @@ import { cn } from '@/lib/utils'
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
-  const user = useAuthStore((s) => s.user)
-  const links = user ? filterNavLinks(user.role) : []
+  const { user, hasHydrated } = useAuthStore()
+  const links = hasHydrated ? (user ? filterNavLinks(user.role) : []) : []
 
   return (
     <aside

@@ -25,7 +25,7 @@ export function ConnectionIndicator() {
       className="group relative flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
       title={
         lastUpdateAt
-          ? `Last update: ${lastUpdateAt.toLocaleTimeString()}`
+          ? `Last update: ${lastUpdateAt.toISOString()}`
           : 'No data received yet'
       }
     >
