@@ -70,62 +70,67 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   }
 
   get registrationRequest() {
-    return this.proxyModel(
-      this.raw.registrationRequest,
-      'registrationRequest',
-    );
+    return this.proxyModel(this.raw.registrationRequest, 'registrationRequest');
   }
 
-  async $transaction<T>(
-    fn: (tx: PrismaClient) => Promise<T>,
-  ): Promise<T> {
+  async $transaction<T>(fn: (tx: PrismaClient) => Promise<T>): Promise<T> {
     return this.raw.$transaction(async (tx: PrismaClient) => {
       const ctx = rlsStorage.getStore();
       if (ctx) {
         for (const stmt of buildRlsStatements(ctx)) {
-          await (tx as unknown as { $executeRawUnsafe: (s: string) => Promise<number> }).$executeRawUnsafe(stmt);
+          await (
+            tx as unknown as {
+              $executeRawUnsafe: (s: string) => Promise<number>;
+            }
+          ).$executeRawUnsafe(stmt);
         }
       }
       return fn(tx);
     });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private proxyModel(model: any, modelName: string): any {
+  private proxyModel<T>(model: T, modelName: string): T {
     return new Proxy(model, {
-      get: (target: any, prop: string) => {
-        const value = target[prop];
+      get: (target: T, prop: string | symbol) => {
+        const value = (target as Record<string | symbol, unknown>)[prop];
         if (typeof value !== 'function') return value;
         return (...args: unknown[]) => {
           const ctx = rlsStorage.getStore();
           if (!ctx) {
-            return (value as Function).apply(target, args);
+            return (value as (...args: unknown[]) => unknown).apply(
+              target,
+              args,
+            );
           }
           return this.raw.$transaction(async (tx: PrismaClient) => {
             for (const stmt of buildRlsStatements(ctx)) {
               await tx.$executeRawUnsafe(stmt);
             }
-            const txModel = (tx as unknown as Record<string, unknown>)[modelName];
-            const txMethod = (txModel as Record<string, unknown>)[prop] as Function;
+            const txModel = (tx as unknown as Record<string, unknown>)[
+              modelName
+            ];
+            const txMethod = (txModel as Record<string, unknown>)[
+              prop as string
+            ] as (...args: unknown[]) => unknown;
             return txMethod.apply(txModel, args);
           });
         };
       },
-    });
+    }) as unknown as T;
   }
 
   $queryRaw<T = unknown>(
     strings: TemplateStringsArray,
     ...values: unknown[]
   ): Promise<T> {
-    return this.raw.$queryRaw(strings, ...values) as Promise<T>;
+    return this.raw.$queryRaw(strings, ...values);
   }
 
   $queryRawUnsafe<T = unknown>(
     query: string,
     ...values: unknown[]
   ): Promise<T> {
-    return this.raw.$queryRawUnsafe(query, ...values) as Promise<T>;
+    return this.raw.$queryRawUnsafe(query, ...values);
   }
 
   $executeRaw(
@@ -135,10 +140,7 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.raw.$executeRaw(strings, ...values);
   }
 
-  $executeRawUnsafe(
-    query: string,
-    ...values: unknown[]
-  ): Promise<number> {
+  $executeRawUnsafe(query: string, ...values: unknown[]): Promise<number> {
     return this.raw.$executeRawUnsafe(query, ...values);
   }
 }

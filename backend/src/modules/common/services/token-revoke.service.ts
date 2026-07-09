@@ -10,7 +10,7 @@ export class TokenRevokeService {
     private readonly redis: RedisService,
     configService: ConfigService,
   ) {
-    const refreshExpiry = configService.get('JWT_REFRESH_EXPIRY', '7d');
+    const refreshExpiry = configService.get<string>('JWT_REFRESH_EXPIRY', '7d');
     this.revokeTtlSeconds = this.parseExpiryToSeconds(refreshExpiry);
   }
 
@@ -28,11 +28,16 @@ export class TokenRevokeService {
     if (!match) return 7 * 24 * 60 * 60;
     const value = parseInt(match[1], 10);
     switch (match[2]) {
-      case 's': return value;
-      case 'm': return value * 60;
-      case 'h': return value * 3600;
-      case 'd': return value * 86400;
-      default: return 7 * 24 * 60 * 60;
+      case 's':
+        return value;
+      case 'm':
+        return value * 60;
+      case 'h':
+        return value * 3600;
+      case 'd':
+        return value * 86400;
+      default:
+        return 7 * 24 * 60 * 60;
     }
   }
 }

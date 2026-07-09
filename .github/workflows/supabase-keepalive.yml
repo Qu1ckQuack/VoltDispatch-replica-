@@ -1,0 +1,15 @@
+name: Supabase Keepalive
+
+on:
+  schedule:
+    - cron: "0 0 */5 * *"
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ping backend health endpoint
+        run: |
+          curl -sf --max-time 10 "http://13.212.189.43:3001/health" || echo "Health check failed"
+          echo "Keepalive ping sent at $(date -u)"

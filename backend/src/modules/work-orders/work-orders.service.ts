@@ -56,7 +56,7 @@ export class WorkOrdersService {
     private readonly redis: RedisService,
   ) {}
 
-  async create(dto: CreateWorkOrderDto, user: AuthenticatedUser) {
+  create(dto: CreateWorkOrderDto, user: AuthenticatedUser) {
     if (!user.profileId) {
       throw new ForbiddenException('User has no dealer profile');
     }
@@ -224,7 +224,12 @@ export class WorkOrdersService {
 
     this.eventEmitter.emit(
       WorkOrderStatusChangedEvent.name,
-      new WorkOrderStatusChangedEvent(id, order.status, WorkOrderStatus.ASSIGNED, updated),
+      new WorkOrderStatusChangedEvent(
+        id,
+        order.status,
+        WorkOrderStatus.ASSIGNED,
+        updated,
+      ),
     );
 
     return updated;
@@ -284,7 +289,7 @@ export class WorkOrdersService {
   async cancel(id: string, user: AuthenticatedUser, note?: string | null) {
     const order = await this.findById(id, user);
 
-    const allowedRoles = CANCEL_RULES[order.status as WorkOrderStatus];
+    const allowedRoles = CANCEL_RULES[order.status];
     if (!allowedRoles || !allowedRoles.includes(user.role)) {
       throw new ForbiddenException(
         `Cannot cancel work order in status ${order.status} as role ${user.role}`,

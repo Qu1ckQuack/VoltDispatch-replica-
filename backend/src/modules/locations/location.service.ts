@@ -4,7 +4,7 @@ import { LocationCacheService } from './location-cache.service.js';
 import { RoomManagerService } from './services/room-manager.service.js';
 import { WorkOrderStatus } from '../../generated/prisma/enums.js';
 import type { WsAuthenticatedUser } from './services/ws-auth.service.js';
-import { rlsStorage, type RlsUser } from '../common/services/rls-context.js';
+import type { RlsUser } from '../common/services/rls-context.js';
 
 @Injectable()
 export class LocationService {
@@ -98,9 +98,7 @@ export class LocationService {
     }
   }
 
-  async autoSubscribeRooms(
-    user: WsAuthenticatedUser,
-  ): Promise<string[]> {
+  async autoSubscribeRooms(user: WsAuthenticatedUser): Promise<string[]> {
     let orderIds: string[] = [];
 
     switch (user.role) {

@@ -6,3 +6,4 @@ coverage/
 *.log
 .opencode/
 backend/src/generated/
+*.pem

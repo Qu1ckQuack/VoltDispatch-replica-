@@ -25,7 +25,6 @@ import { UpdatePositionDto } from './dto/update-position.dto.js';
 import { RedisService } from '../redis/redis.service.js';
 import { RoomManagerService } from './services/room-manager.service.js';
 import { PositionRateLimiterService } from './services/position-rate-limiter.service.js';
-import { rlsStorage } from '../common/services/rls-context.js';
 
 const LOCATION_UPDATES_CHANNEL = 'location:updates';
 const HQ_ACTIVITIES_CHANNEL = 'hq:activities';
@@ -43,7 +42,11 @@ interface ClientData {
   maxPayload: 2048,
 })
 export class LocationGateway
-  implements OnModuleInit, OnModuleDestroy, OnGatewayConnection, OnGatewayDisconnect
+  implements
+    OnModuleInit,
+    OnModuleDestroy,
+    OnGatewayConnection,
+    OnGatewayDisconnect
 {
   @WebSocketServer()
   server!: Server;
@@ -231,7 +234,10 @@ export class LocationGateway
     }
 
     const room = payload.room;
-    const allowed = await this.locationService.validateRoomAccess(data.user, room);
+    const allowed = await this.locationService.validateRoomAccess(
+      data.user,
+      room,
+    );
     if (!allowed) {
       this.send(client, 'error', { message: 'Access denied to this room' });
       return;
