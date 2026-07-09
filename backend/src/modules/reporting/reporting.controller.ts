@@ -10,7 +10,7 @@ export class ReportingController {
   constructor(private readonly reportingService: ReportingService) {}
 
   @Get('overview')
-  @Roles('HQ', 'COORDINATOR', 'TECHNICIAN')
+  @Roles('HQ', 'COORDINATOR', 'TECHNICIAN', 'DEALER')
   getOverview(@CurrentUser() user: AuthenticatedUser) {
     return this.reportingService.getOverview(user);
   }

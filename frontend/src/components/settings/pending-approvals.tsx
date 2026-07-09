@@ -15,6 +15,7 @@ export function PendingApprovals() {
   const { data: requests = [], isLoading } = useQuery({
     queryKey: ['pending-approvals'],
     queryFn: registrationApi.listPending,
+    enabled: user?.role === UserRole.HQ || user?.role === UserRole.COORDINATOR,
   })
 
   const approveMutation = useMutation({

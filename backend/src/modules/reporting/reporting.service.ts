@@ -13,15 +13,17 @@ export class ReportingService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getOverview(currentUser: AuthenticatedUser) {
-    const isTech = currentUser.role === 'TECHNICIAN';
-    const techId = isTech ? currentUser.profileId : null;
+    const role = currentUser.role;
+    const isScoped = role === 'TECHNICIAN' || role === 'DEALER';
+    const scopeField = role === 'TECHNICIAN' ? 'technicianId' : 'dealerId';
+    const scopeId = isScoped ? currentUser.profileId : null;
 
     const queries = [
-      this.getAggregatedMetrics(techId).catch((err) => {
+      this.getAggregatedMetrics(scopeId, scopeField).catch((err) => {
         this.logger.error(`Failed to fetch metrics: ${(err as Error).message}`);
         return null;
       }),
-      ...(isTech
+      ...(isScoped
         ? [Promise.resolve(null as null)]
         : [
             this.getDailyByStatusRaw().catch((err) => {
@@ -31,19 +33,19 @@ export class ReportingService {
               return null;
             }),
           ]),
-      this.getPendingLast7Days(techId).catch((err) => {
+      this.getPendingLast7Days(scopeId, scopeField).catch((err) => {
         this.logger.error(
           `Failed to fetch pending orders: ${(err as Error).message}`,
         );
         return null;
       }),
-      this.getRecentlyCompleted(techId).catch((err) => {
+      this.getRecentlyCompleted(scopeId, scopeField).catch((err) => {
         this.logger.error(
           `Failed to fetch recently completed: ${(err as Error).message}`,
         );
         return null;
       }),
-      ...(isTech
+      ...(isScoped
         ? [Promise.resolve(null as null)]
         : [
             this.getTechnicianWorkload().catch((err) => {
@@ -53,7 +55,7 @@ export class ReportingService {
               return null;
             }),
           ]),
-      this.getRecentActivities(techId).catch((err) => {
+      this.getRecentActivities(scopeId, scopeField).catch((err) => {
         this.logger.error(
           `Failed to fetch recent activities: ${(err as Error).message}`,
         );
@@ -86,19 +88,26 @@ export class ReportingService {
     };
   }
 
-  private async getAggregatedMetrics(techId?: string | null) {
-    if (techId) {
+  private async getAggregatedMetrics(scopeId?: string | null, scopeField?: string) {
+    if (scopeId && scopeField) {
+      const isTechScope = scopeField === 'technicianId';
       const rows = await this.prisma.$queryRaw<
         { total_orders: bigint; pending_orders: bigint; in_process_orders: bigint; completed_today: bigint; sla_breached: bigint; techs_online: bigint; avg_rating: number | null }[]
       >`
         SELECT
-          (SELECT COUNT(*)::bigint FROM work_orders WHERE technician_id = ${techId}::uuid) AS total_orders,
-          (SELECT COUNT(*)::bigint FROM work_orders WHERE technician_id = ${techId}::uuid AND status IN ('REQUESTED','ASSIGNED','ACCEPTED')) AS pending_orders,
-          (SELECT COUNT(*)::bigint FROM work_orders WHERE technician_id = ${techId}::uuid AND status IN ('EN_ROUTE','IN_PROGRESS','ISSUE')) AS in_process_orders,
-          (SELECT COUNT(*)::bigint FROM work_orders WHERE technician_id = ${techId}::uuid AND status = 'COMPLETED' AND completed_at::date = CURRENT_DATE) AS completed_today,
-          (SELECT COUNT(*)::bigint FROM work_orders WHERE technician_id = ${techId}::uuid AND status NOT IN ('COMPLETED','CANCELLED') AND sla_deadline < NOW()) AS sla_breached,
-          (SELECT CASE WHEN EXISTS (SELECT 1 FROM technicians WHERE id = ${techId}::uuid AND status = 'AVAILABLE') THEN 1 ELSE 0 END) AS techs_online,
-          (SELECT AVG(score)::numeric(3,2) FROM ratings WHERE technician_id = ${techId}::uuid) AS avg_rating
+          (SELECT COUNT(*)::bigint FROM work_orders WHERE ${Prisma.raw(scopeField)} = ${scopeId}::uuid) AS total_orders,
+          (SELECT COUNT(*)::bigint FROM work_orders WHERE ${Prisma.raw(scopeField)} = ${scopeId}::uuid AND status IN ('REQUESTED','ASSIGNED','ACCEPTED')) AS pending_orders,
+          (SELECT COUNT(*)::bigint FROM work_orders WHERE ${Prisma.raw(scopeField)} = ${scopeId}::uuid AND status IN ('EN_ROUTE','IN_PROGRESS','ISSUE')) AS in_process_orders,
+          (SELECT COUNT(*)::bigint FROM work_orders WHERE ${Prisma.raw(scopeField)} = ${scopeId}::uuid AND status = 'COMPLETED' AND completed_at::date = CURRENT_DATE) AS completed_today,
+          (SELECT COUNT(*)::bigint FROM work_orders WHERE ${Prisma.raw(scopeField)} = ${scopeId}::uuid AND status NOT IN ('COMPLETED','CANCELLED') AND sla_deadline < NOW()) AS sla_breached,
+          ${isTechScope
+            ? Prisma.sql`(SELECT CASE WHEN EXISTS (SELECT 1 FROM technicians WHERE id = ${scopeId}::uuid AND status = 'AVAILABLE') THEN 1 ELSE 0 END)`
+            : Prisma.sql`(SELECT COUNT(*)::bigint FROM technicians WHERE status = 'AVAILABLE')`
+          } AS techs_online,
+          ${isTechScope
+            ? Prisma.sql`(SELECT AVG(score)::numeric(3,2) FROM ratings WHERE technician_id = ${scopeId}::uuid)`
+            : Prisma.sql`(SELECT AVG(score)::numeric(3,2) FROM ratings)`
+          } AS avg_rating
       `;
       return {
         totalOrders: Number(rows[0].total_orders),
@@ -158,14 +167,14 @@ export class ReportingService {
     return rows.map((r) => ({ status: r.status, count: Number(r.count) }));
   }
 
-  private async getPendingLast7Days(techId?: string | null) {
+  private async getPendingLast7Days(scopeId?: string | null, scopeField?: string) {
     return this.prisma.workOrder.findMany({
       where: {
         createdAt: { gte: new Date(Date.now() - SEVEN_DAYS_MS) },
         status: {
           notIn: [WorkOrderStatus.COMPLETED, WorkOrderStatus.CANCELLED],
         },
-        ...(techId ? { technicianId: techId } : {}),
+        ...(scopeId && scopeField ? { [scopeField]: scopeId } : {}),
       },
       include: {
         customer: { select: { id: true, name: true } },
@@ -177,11 +186,11 @@ export class ReportingService {
     });
   }
 
-  private async getRecentlyCompleted(techId?: string | null) {
+  private async getRecentlyCompleted(scopeId?: string | null, scopeField?: string) {
     return this.prisma.workOrder.findMany({
       where: {
         status: WorkOrderStatus.COMPLETED,
-        ...(techId ? { technicianId: techId } : {}),
+        ...(scopeId && scopeField ? { [scopeField]: scopeId } : {}),
       },
       include: {
         customer: { select: { id: true, name: true } },
@@ -217,9 +226,11 @@ export class ReportingService {
     }));
   }
 
-  private async getRecentActivities(techId?: string | null) {
-    const whereClause = techId
-      ? Prisma.sql`WHERE wo.technician_id = ${techId}::uuid`
+  private async getRecentActivities(scopeId?: string | null, scopeField?: string) {
+    const whereClause = scopeId && scopeField
+      ? scopeField === 'technicianId'
+        ? Prisma.sql`WHERE wo.technician_id = ${scopeId}::uuid`
+        : Prisma.sql`WHERE wo.dealer_id = ${scopeId}::uuid`
       : Prisma.empty;
 
     const rows = await this.prisma.$queryRaw<
