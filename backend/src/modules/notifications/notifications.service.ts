@@ -8,6 +8,7 @@ import {
   type NotificationJobData,
 } from '../bullmq/queues/notification.queue.js';
 import { PrismaService } from '../common/prisma.service.js';
+import { Prisma } from '../../generated/prisma/client.js';
 import type { NotificationAdapter } from './adapters/notification-adapter.interface.js';
 import { ResendAdapter } from './adapters/resend.adapter.js';
 import { LineAdapter } from './adapters/line.adapter.js';
@@ -69,8 +70,7 @@ export class NotificationsService {
         customerId: customerId ?? null,
         channel,
         type,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        payload: payload as any,
+        payload: payload as Prisma.InputJsonValue,
         status: NotificationStatus.PENDING,
       },
     });

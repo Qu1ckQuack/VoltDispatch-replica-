@@ -39,7 +39,10 @@ export class S3StorageService {
   ): Promise<UploadResult> {
     const ext = extname(file.originalname) || '.jpg';
     const key = `work-orders/${workOrderId}/${randomUUID()}${ext}`;
+    return this.put(key, file);
+  }
 
+  async put(key: string, file: Express.Multer.File): Promise<UploadResult> {
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,

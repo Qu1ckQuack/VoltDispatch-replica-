@@ -18,15 +18,50 @@ interface PrismaClientKnownRequestError extends Error {
   meta?: Record<string, unknown>;
 }
 
-const PRISMA_CODES: Record<string, { code: ErrorCode; status: number; message: string }> = {
-  P2000: { code: ErrorCodes.VALIDATION_ERROR, status: HttpStatus.BAD_REQUEST, message: 'Value too long for column' },
-  P2002: { code: ErrorCodes.PRISMA_UNIQUE_CONSTRAINT, status: HttpStatus.CONFLICT, message: 'A record with this value already exists' },
-  P2003: { code: ErrorCodes.PRISMA_FOREIGN_KEY, status: HttpStatus.CONFLICT, message: 'Referenced record does not exist' },
-  P2014: { code: ErrorCodes.PRISMA_REQUIRED_RELATION, status: HttpStatus.BAD_REQUEST, message: 'Required relation violation' },
-  P2025: { code: ErrorCodes.PRISMA_NOT_FOUND, status: HttpStatus.NOT_FOUND, message: 'Record not found' },
-  P2021: { code: ErrorCodes.DATABASE_ERROR, status: HttpStatus.INTERNAL_SERVER_ERROR, message: 'Table does not exist' },
-  P1000: { code: ErrorCodes.DATABASE_ERROR, status: HttpStatus.SERVICE_UNAVAILABLE, message: 'Database authentication failed' },
-  P1001: { code: ErrorCodes.DATABASE_ERROR, status: HttpStatus.SERVICE_UNAVAILABLE, message: 'Cannot reach database server' },
+const PRISMA_CODES: Record<
+  string,
+  { code: ErrorCode; status: HttpStatus; message: string }
+> = {
+  P2000: {
+    code: ErrorCodes.VALIDATION_ERROR,
+    status: HttpStatus.BAD_REQUEST,
+    message: 'Value too long for column',
+  },
+  P2002: {
+    code: ErrorCodes.PRISMA_UNIQUE_CONSTRAINT,
+    status: HttpStatus.CONFLICT,
+    message: 'A record with this value already exists',
+  },
+  P2003: {
+    code: ErrorCodes.PRISMA_FOREIGN_KEY,
+    status: HttpStatus.CONFLICT,
+    message: 'Referenced record does not exist',
+  },
+  P2014: {
+    code: ErrorCodes.PRISMA_REQUIRED_RELATION,
+    status: HttpStatus.BAD_REQUEST,
+    message: 'Required relation violation',
+  },
+  P2025: {
+    code: ErrorCodes.PRISMA_NOT_FOUND,
+    status: HttpStatus.NOT_FOUND,
+    message: 'Record not found',
+  },
+  P2021: {
+    code: ErrorCodes.DATABASE_ERROR,
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    message: 'Table does not exist',
+  },
+  P1000: {
+    code: ErrorCodes.DATABASE_ERROR,
+    status: HttpStatus.SERVICE_UNAVAILABLE,
+    message: 'Database authentication failed',
+  },
+  P1001: {
+    code: ErrorCodes.DATABASE_ERROR,
+    status: HttpStatus.SERVICE_UNAVAILABLE,
+    message: 'Cannot reach database server',
+  },
 };
 
 function isPrismaError(err: unknown): err is PrismaClientKnownRequestError {
@@ -61,9 +96,10 @@ export class AppExceptionFilter implements ExceptionFilter {
     response.status(statusCode).json(errorResponse);
   }
 
-  private resolveError(
-    exception: unknown,
-  ): { errorResponse: AppErrorResponse; statusCode: number } {
+  private resolveError(exception: unknown): {
+    errorResponse: AppErrorResponse;
+    statusCode: number;
+  } {
     // 1. Prisma errors
     if (isPrismaError(exception)) {
       const mapping = PRISMA_CODES[exception.code];
@@ -99,6 +135,7 @@ export class AppExceptionFilter implements ExceptionFilter {
 
       // ValidationPipe errors come as BadRequestException with an array in message
       if (
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
         status === HttpStatus.BAD_REQUEST &&
         typeof responseBody === 'object' &&
         responseBody !== null
@@ -129,35 +166,30 @@ export class AppExceptionFilter implements ExceptionFilter {
     }
 
     // 4. Everything else — unexpected errors
-    const message = extractErrorMessage(exception, 'An unexpected error occurred');
+    const message = extractErrorMessage(
+      exception,
+      'An unexpected error occurred',
+    );
     return {
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
       errorResponse: {
         success: false,
         error: {
           code: ErrorCodes.INTERNAL_ERROR,
-          message: 'An unexpected error occurred',
+          message,
         },
       },
     };
   }
 
-  private httpStatusToErrorCode(status: number): ErrorCode {
-    switch (status) {
-      case HttpStatus.UNAUTHORIZED:
-        return ErrorCodes.AUTH_INVALID_CREDENTIALS;
-      case HttpStatus.FORBIDDEN:
-        return ErrorCodes.FORBIDDEN;
-      case HttpStatus.NOT_FOUND:
-        return ErrorCodes.NOT_FOUND;
-      case HttpStatus.CONFLICT:
-        return ErrorCodes.CONFLICT;
-      case HttpStatus.TOO_MANY_REQUESTS:
-        return ErrorCodes.RATE_LIMITED;
-      case HttpStatus.BAD_REQUEST:
-        return ErrorCodes.VALIDATION_ERROR;
-      default:
-        return ErrorCodes.INTERNAL_ERROR;
-    }
+  private httpStatusToErrorCode(status: HttpStatus): ErrorCode {
+    if (status === HttpStatus.UNAUTHORIZED)
+      return ErrorCodes.AUTH_INVALID_CREDENTIALS;
+    if (status === HttpStatus.FORBIDDEN) return ErrorCodes.FORBIDDEN;
+    if (status === HttpStatus.NOT_FOUND) return ErrorCodes.NOT_FOUND;
+    if (status === HttpStatus.CONFLICT) return ErrorCodes.CONFLICT;
+    if (status === HttpStatus.TOO_MANY_REQUESTS) return ErrorCodes.RATE_LIMITED;
+    if (status === HttpStatus.BAD_REQUEST) return ErrorCodes.VALIDATION_ERROR;
+    return ErrorCodes.INTERNAL_ERROR;
   }
 }

@@ -137,6 +137,7 @@ model User {
   passwordHash String   @map("password_hash")
   role         UserRole
   lineUserId   String?  @map("line_user_id")
+  avatarKey    String?  @map("avatar_key")
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")

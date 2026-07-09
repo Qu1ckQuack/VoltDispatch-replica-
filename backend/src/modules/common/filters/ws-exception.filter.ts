@@ -1,9 +1,4 @@
-import {
-  Catch,
-  ArgumentsHost,
-  Logger,
-} from '@nestjs/common';
-import type { WsArgumentsHost } from '@nestjs/common/interfaces/index.js';
+import { Catch, ArgumentsHost, Logger } from '@nestjs/common';
 import { WebSocket } from 'ws';
 import { extractErrorMessage } from '../utils/error-message.js';
 import { ErrorCodes } from '../errors/error-codes.js';
@@ -41,17 +36,38 @@ export class WsExceptionFilter {
     if (exception instanceof Error) {
       const msg = exception.message.toLowerCase();
       if (msg.includes('token') || msg.includes('auth')) {
-        return { event: 'error', data: { code: ErrorCodes.WS_AUTH_FAILED, message: exception.message } };
+        return {
+          event: 'error',
+          data: { code: ErrorCodes.WS_AUTH_FAILED, message: exception.message },
+        };
       }
       if (msg.includes('denied') || msg.includes('forbidden')) {
-        return { event: 'error', data: { code: ErrorCodes.WS_ACCESS_DENIED, message: exception.message } };
+        return {
+          event: 'error',
+          data: {
+            code: ErrorCodes.WS_ACCESS_DENIED,
+            message: exception.message,
+          },
+        };
       }
       if (msg.includes('rate') || msg.includes('limit')) {
-        return { event: 'error', data: { code: ErrorCodes.WS_RATE_LIMITED, message: exception.message } };
+        return {
+          event: 'error',
+          data: {
+            code: ErrorCodes.WS_RATE_LIMITED,
+            message: exception.message,
+          },
+        };
       }
     }
 
-    const message = extractErrorMessage(exception, 'An unexpected error occurred');
-    return { event: 'error', data: { code: ErrorCodes.INTERNAL_ERROR, message } };
+    const message = extractErrorMessage(
+      exception,
+      'An unexpected error occurred',
+    );
+    return {
+      event: 'error',
+      data: { code: ErrorCodes.INTERNAL_ERROR, message },
+    };
   }
 }

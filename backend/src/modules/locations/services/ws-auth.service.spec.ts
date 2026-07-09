@@ -60,7 +60,7 @@ describe('WsAuthService', () => {
     mockConfigGet.mockReturnValue('http://localhost:3000');
 
     await expect(service.verify('token', 'http://evil.com')).rejects.toThrow(
-      UnauthorizedException,
+      UnauthorizedAppException,
     );
   });
 

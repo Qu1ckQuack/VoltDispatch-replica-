@@ -50,7 +50,10 @@ export class ConflictAppException extends AppException {
 }
 
 export class UnauthorizedAppException extends AppException {
-  constructor(message: string, code: ErrorCode = ErrorCodes.AUTH_INVALID_CREDENTIALS) {
+  constructor(
+    message: string,
+    code: ErrorCode = ErrorCodes.AUTH_INVALID_CREDENTIALS,
+  ) {
     super(code, message, HttpStatus.UNAUTHORIZED);
   }
 }

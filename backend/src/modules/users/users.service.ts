@@ -92,4 +92,12 @@ export class UsersService {
       data: { passwordHash },
     });
   }
+
+  async updateAvatarKey(id: string, avatarKey: string | null): Promise<User> {
+    await this.findById(id);
+    return this.prisma.user.update({
+      where: { id },
+      data: { avatarKey },
+    });
+  }
 }

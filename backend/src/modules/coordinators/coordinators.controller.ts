@@ -11,6 +11,9 @@ import { CoordinatorsService } from './coordinators.service.js';
 import { CreateCoordinatorDto } from './dto/create-coordinator.dto.js';
 import { UpdateCoordinatorDto } from './dto/update-coordinator.dto.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
+import { CurrentUser } from '../common/decorators/current-user.decorator.js';
+import type { AuthenticatedUser } from '../common/services/scoping.service.js';
+import { BadRequestAppException } from '../common/errors/app-exception.js';
 
 @Controller('coordinators')
 @Roles('HQ')
@@ -25,6 +28,36 @@ export class CoordinatorsController {
   @Get()
   findAll() {
     return this.coordinatorsService.findAll();
+  }
+
+  @Get('me')
+  @Roles('COORDINATOR')
+  findMyProfile(@CurrentUser() user: AuthenticatedUser) {
+    if (!user.profileId) {
+      throw new BadRequestAppException(
+        'No coordinator profile linked to this user',
+      );
+    }
+    return this.coordinatorsService.findById(user.profileId);
+  }
+
+  @Patch('me')
+  @Roles('COORDINATOR')
+  updateMyProfile(
+    @Body() dto: UpdateCoordinatorDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (!user.profileId) {
+      throw new BadRequestAppException(
+        'No coordinator profile linked to this user',
+      );
+    }
+    return this.coordinatorsService.update(user.profileId, dto);
+  }
+
+  @Get('by-user/:userId')
+  findByUserId(@Param('userId') userId: string) {
+    return this.coordinatorsService.findByUserId(userId);
   }
 
   @Get(':id')

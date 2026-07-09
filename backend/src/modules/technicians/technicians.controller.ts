@@ -32,6 +32,23 @@ export class TechniciansController {
     return this.techniciansService.findAll();
   }
 
+  @Get('me')
+  @Roles('TECHNICIAN')
+  findMyProfile(@CurrentUser() user: AuthenticatedUser) {
+    if (!user.profileId) {
+      throw new BadRequestAppException(
+        'No technician profile linked to this user',
+      );
+    }
+    return this.techniciansService.findById(user.profileId);
+  }
+
+  @Get('by-user/:userId')
+  @Roles('HQ')
+  findByUserId(@Param('userId') userId: string) {
+    return this.techniciansService.findByUserId(userId);
+  }
+
   @Get(':id')
   @Roles('HQ')
   findById(@Param('id') id: string) {

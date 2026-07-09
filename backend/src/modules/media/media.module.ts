@@ -6,5 +6,6 @@ import { S3StorageService } from './s3-storage.service.js';
 @Module({
   controllers: [MediaController],
   providers: [MediaService, S3StorageService],
+  exports: [S3StorageService],
 })
 export class MediaModule {}

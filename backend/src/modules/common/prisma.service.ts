@@ -78,9 +78,7 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.proxyModel(this.raw.registrationRequest, 'registrationRequest');
   }
 
-  async $transaction<T>(
-    fn: (tx: TransactionClient) => Promise<T>,
-  ): Promise<T> {
+  async $transaction<T>(fn: (tx: TransactionClient) => Promise<T>): Promise<T> {
     return this.raw.$transaction(async (tx: TransactionClient) => {
       const ctx = rlsStorage.getStore();
       if (ctx) {
@@ -112,14 +110,14 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
             const txModel = (tx as unknown as Record<string, unknown>)[
               modelName
             ];
-            const txMethod = (txModel as unknown as Record<string, unknown>)[
+            const txMethod = (txModel as Record<string, unknown>)[
               prop as string
             ] as (...args: unknown[]) => unknown;
             return txMethod.apply(txModel, args);
           });
         };
       },
-    }) as T;
+    });
   }
 
   $queryRaw<T = unknown>(
