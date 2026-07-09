@@ -4,6 +4,11 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../../generated/prisma/client.js';
 import { rlsStorage, buildRlsStatements } from './services/rls-context.js';
 
+type TransactionClient = Omit<
+  PrismaClient,
+  '$connect' | '$disconnect' | '$on' | '$use' | '$extends'
+>;
+
 @Injectable()
 export class PrismaService implements OnModuleInit, OnModuleDestroy {
   readonly raw: PrismaClient;
@@ -73,23 +78,21 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.proxyModel(this.raw.registrationRequest, 'registrationRequest');
   }
 
-  async $transaction<T>(fn: (tx: PrismaClient) => Promise<T>): Promise<T> {
-    return this.raw.$transaction(async (tx: PrismaClient) => {
+  async $transaction<T>(
+    fn: (tx: TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return this.raw.$transaction(async (tx: TransactionClient) => {
       const ctx = rlsStorage.getStore();
       if (ctx) {
         for (const stmt of buildRlsStatements(ctx)) {
-          await (
-            tx as unknown as {
-              $executeRawUnsafe: (s: string) => Promise<number>;
-            }
-          ).$executeRawUnsafe(stmt);
+          await tx.$executeRawUnsafe(stmt);
         }
       }
       return fn(tx);
     });
   }
 
-  private proxyModel<T>(model: T, modelName: string): T {
+  private proxyModel<T extends object>(model: T, modelName: string): T {
     return new Proxy(model, {
       get: (target: T, prop: string | symbol) => {
         const value = (target as Record<string | symbol, unknown>)[prop];
@@ -102,21 +105,21 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
               args,
             );
           }
-          return this.raw.$transaction(async (tx: PrismaClient) => {
+          return this.raw.$transaction(async (tx: TransactionClient) => {
             for (const stmt of buildRlsStatements(ctx)) {
               await tx.$executeRawUnsafe(stmt);
             }
             const txModel = (tx as unknown as Record<string, unknown>)[
               modelName
             ];
-            const txMethod = (txModel as Record<string, unknown>)[
+            const txMethod = (txModel as unknown as Record<string, unknown>)[
               prop as string
             ] as (...args: unknown[]) => unknown;
             return txMethod.apply(txModel, args);
           });
         };
       },
-    }) as unknown as T;
+    }) as T;
   }
 
   $queryRaw<T = unknown>(

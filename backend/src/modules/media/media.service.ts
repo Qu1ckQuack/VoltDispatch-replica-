@@ -1,14 +1,15 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, Logger, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../common/prisma.service.js';
 import { S3StorageService } from './s3-storage.service.js';
 import type { AuthenticatedUser } from '../common/services/scoping.service.js';
 import { ScopingService } from '../common/services/scoping.service.js';
 import type { ImageType } from '../../generated/prisma/enums.js';
+import {
+  NotFoundAppException,
+  ForbiddenAppException,
+  AppException,
+} from '../common/errors/app-exception.js';
+import { ErrorCodes } from '../common/errors/error-codes.js';
 
 @Injectable()
 export class MediaService {
@@ -32,13 +33,15 @@ export class MediaService {
     });
 
     if (!workOrder) {
-      throw new NotFoundException('Work order not found');
+      throw new NotFoundAppException('Work order');
     }
 
     if (user.role === 'TECHNICIAN') {
       const techProfileId = user.profileId;
       if (!techProfileId || workOrder.technicianId !== techProfileId) {
-        throw new ForbiddenException('You are not assigned to this work order');
+        throw new ForbiddenAppException(
+          'You are not assigned to this work order',
+        );
       }
     }
 
@@ -67,7 +70,7 @@ export class MediaService {
     });
 
     if (!workOrder) {
-      throw new NotFoundException('Work order not found');
+      throw new NotFoundAppException('Work order');
     }
 
     return workOrder;
@@ -82,10 +85,19 @@ export class MediaService {
     });
 
     const signed = await Promise.all(
-      images.map(async (img: { id: string; url: string; type: ImageType; workOrderId: string; uploadedBy: string | null; uploadedAt: Date }) => ({
-        ...img,
-        url: await this.s3.getSignedUrl(img.url),
-      })),
+      images.map(
+        async (img: {
+          id: string;
+          url: string;
+          type: ImageType;
+          workOrderId: string;
+          uploadedBy: string | null;
+          uploadedAt: Date;
+        }) => ({
+          ...img,
+          url: await this.s3.getSignedUrl(img.url),
+        }),
+      ),
     );
 
     return signed;
@@ -99,11 +111,15 @@ export class MediaService {
     });
 
     if (!image || image.workOrderId !== workOrderId) {
-      throw new NotFoundException('Image not found on this work order');
+      throw new AppException(
+        ErrorCodes.NOT_FOUND,
+        'Image not found on this work order',
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     if (user.role === 'TECHNICIAN' && image.uploadedBy !== user.id) {
-      throw new ForbiddenException('You can only delete your own uploads');
+      throw new ForbiddenAppException('You can only delete your own uploads');
     }
 
     await Promise.all([

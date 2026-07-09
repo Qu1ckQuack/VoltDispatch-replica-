@@ -16,7 +16,7 @@ export function buildRedisUrl(config: ConfigService): string {
   return `rediss://default:${encodeURIComponent(token)}@${host}:6379`;
 }
 
-export function buildRedisConnectionOptions(
+export function buildBullmqConnectionOptions(
   config: ConfigService,
 ): ConnectionOptions {
   const token = buildRedisToken(config);

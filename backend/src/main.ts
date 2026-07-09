@@ -1,6 +1,8 @@
 import { NestFactory } from '@nestjs/core';
+import { Logger } from '@nestjs/common';
 import { WsAdapter } from '@nestjs/platform-ws';
 import { AppModule } from './app.module.js';
+import { extractErrorMessage } from './modules/common/utils/error-message.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -16,6 +18,8 @@ async function bootstrap() {
   await app.listen(process.env.PORT ?? 3000);
 }
 bootstrap().catch((err: unknown) => {
-  console.error('Failed to start application', err);
+  new Logger('Bootstrap').error(
+    `Failed to start application: ${extractErrorMessage(err)}`,
+  );
   process.exit(1);
 });

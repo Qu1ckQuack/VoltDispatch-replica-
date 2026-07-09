@@ -1,13 +1,15 @@
+import { Injectable } from '@nestjs/common';
 import {
-  Injectable,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+  NotFoundAppException,
+  ConflictAppException,
+} from '../common/errors/app-exception.js';
+import { ErrorCodes } from '../common/errors/error-codes.js';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../common/prisma.service.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
+import type { User } from '../../generated/prisma/client.js';
 
 @Injectable()
 export class UsersService {
@@ -28,7 +30,10 @@ export class UsersService {
       where: { email: dto.email },
     });
     if (existing) {
-      throw new ConflictException('Email already in use');
+      throw new ConflictAppException(
+        'Email already in use',
+        ErrorCodes.CONFLICT_DUPLICATE,
+      );
     }
 
     const passwordHash = await bcrypt.hash(dto.password, this.bcryptRounds);
@@ -43,21 +48,27 @@ export class UsersService {
     });
   }
 
-  async findByEmail(email: string) {
-    return this.prisma.user.findUnique({ where: { email } });
+  async findByEmail(email: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: { email },
+    });
   }
 
-  async findById(id: string) {
-    const user = await this.prisma.user.findUnique({ where: { id } });
-    if (!user) throw new NotFoundException('User not found');
+  async findById(id: string): Promise<User> {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+    });
+    if (!user) throw new NotFoundAppException('User');
     return user;
   }
 
-  async findAll() {
-    return this.prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
+  async findAll(): Promise<User[]> {
+    return this.prisma.user.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
-  async update(id: string, dto: UpdateUserDto) {
+  async update(id: string, dto: UpdateUserDto): Promise<User> {
     await this.findById(id);
     return this.prisma.user.update({
       where: { id },
@@ -65,7 +76,7 @@ export class UsersService {
     });
   }
 
-  async deactivate(id: string) {
+  async deactivate(id: string): Promise<User> {
     const user = await this.findById(id);
     return this.prisma.user.update({
       where: { id: user.id },
@@ -73,7 +84,7 @@ export class UsersService {
     });
   }
 
-  async resetPassword(id: string, newPassword: string) {
+  async resetPassword(id: string, newPassword: string): Promise<User> {
     const user = await this.findById(id);
     const passwordHash = await bcrypt.hash(newPassword, this.bcryptRounds);
     return this.prisma.user.update({

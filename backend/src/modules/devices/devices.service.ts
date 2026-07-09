@@ -1,14 +1,15 @@
+import { Injectable } from '@nestjs/common';
 import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
-  ForbiddenException,
-} from '@nestjs/common';
+  NotFoundAppException,
+  ConflictAppException,
+  ForbiddenAppException,
+} from '../common/errors/app-exception.js';
+import { ErrorCodes } from '../common/errors/error-codes.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { CreateDeviceDto } from './dto/create-device.dto.js';
 import { UpdateDeviceDto } from './dto/update-device.dto.js';
 import type { AuthenticatedUser } from '../common/services/scoping.service.js';
-import { UserRole } from '../../generated/prisma/enums.js';
+import { UserRole, WorkOrderStatus } from '../../generated/prisma/enums.js';
 
 @Injectable()
 export class DevicesService {
@@ -23,9 +24,9 @@ export class DevicesService {
       where: { id },
       select: { dealerId: true },
     });
-    if (!device) throw new NotFoundException('Device not found');
+    if (!device) throw new NotFoundAppException('Device');
     if (device.dealerId !== user.profileId) {
-      throw new ForbiddenException('Access denied');
+      throw new ForbiddenAppException('Access denied');
     }
   }
 
@@ -34,7 +35,10 @@ export class DevicesService {
       where: { serialNumber: dto.serialNumber },
     });
     if (existing)
-      throw new ConflictException('Serial number already registered');
+      throw new ConflictAppException(
+        'Serial number already registered',
+        ErrorCodes.CONFLICT_DUPLICATE,
+      );
 
     return this.prisma.device.create({
       data: {
@@ -62,7 +66,7 @@ export class DevicesService {
       where: { id },
       include: { dealer: true },
     });
-    if (!device) throw new NotFoundException('Device not found');
+    if (!device) throw new NotFoundAppException('Device');
     if (user) await this.assertDeviceAccess(id, user);
     return device;
   }
@@ -80,6 +84,23 @@ export class DevicesService {
 
   async remove(id: string, user?: AuthenticatedUser) {
     if (user) await this.assertDeviceAccess(id, user);
+
+    const activeOrders = await this.prisma.workOrder.count({
+      where: {
+        deviceId: id,
+        status: {
+          notIn: [WorkOrderStatus.COMPLETED, WorkOrderStatus.CANCELLED],
+        },
+      },
+    });
+
+    if (activeOrders > 0) {
+      throw new ConflictAppException(
+        'Cannot delete device with active work orders',
+        ErrorCodes.CONFLICT_ACTIVE_ORDERS,
+      );
+    }
+
     await this.prisma.device.delete({ where: { id } });
     return { deleted: true };
   }

@@ -32,7 +32,6 @@ export function useLocationSocket(): UseLocationSocketReturn {
   const positionsRef = useRef<Map<string, TechnicianPosition>>(new Map())
 
   const socketRef = useRef<LocationSocket | null>(null)
-
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const unsubRef = useRef<(() => void) | null>(null)
@@ -50,7 +49,7 @@ export function useLocationSocket(): UseLocationSocketReturn {
           try {
             const res = await authApi.refresh(refreshToken)
             useAuthStore.getState().setTokens(res.accessToken, res.refreshToken)
-            return
+            token = res.accessToken
           } catch {
             return
           }
@@ -113,6 +112,15 @@ export function useLocationSocket(): UseLocationSocketReturn {
       socketRef.current = null
       positionsRef.current = new Map()
     }
+  }, [accessToken])
+
+  const prevTokenRef = useRef(accessToken)
+
+  useEffect(() => {
+    if (!socketRef.current || !accessToken) return
+    if (prevTokenRef.current === accessToken) return
+    prevTokenRef.current = accessToken
+    socketRef.current.updateToken(accessToken)
   }, [accessToken])
 
   const subscribeToOrder = useCallback((orderId: string) => {

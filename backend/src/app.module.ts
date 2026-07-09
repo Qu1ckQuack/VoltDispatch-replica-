@@ -28,7 +28,9 @@ import { RegistrationModule } from './modules/registration/registration.module.j
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    EventEmitterModule.forRoot(),
+    EventEmitterModule.forRoot({
+      global: true,
+    }),
     ThrottlerModule.forRoot([
       {
         ttl: 1000,

@@ -1,10 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, HttpStatus } from '@nestjs/common';
+import {
+  AppException,
+  NotFoundAppException,
+  ConflictAppException,
+} from '../common/errors/app-exception.js';
+import { ErrorCodes } from '../common/errors/error-codes.js';
 import * as crypto from 'node:crypto';
 import { PrismaService } from '../common/prisma.service.js';
 import { CreateCustomerDto } from './dto/create-customer.dto.js';
 import { UpdateCustomerDto } from './dto/update-customer.dto.js';
 import type { AuthenticatedUser } from '../common/services/scoping.service.js';
-import { UserRole } from '../../generated/prisma/enums.js';
+import { UserRole, WorkOrderStatus } from '../../generated/prisma/enums.js';
 
 const TOKEN_BYTES = 32;
 
@@ -18,7 +24,11 @@ export class CustomersService {
       include: { workOrders: true },
     });
     if (!customer) {
-      throw new NotFoundException('Invalid or expired access token');
+      throw new AppException(
+        ErrorCodes.NOT_FOUND,
+        'Invalid or expired access token',
+        HttpStatus.NOT_FOUND,
+      );
     }
     return customer;
   }
@@ -62,14 +72,14 @@ export class CustomersService {
       where: { id },
       include: { workOrders: true },
     });
-    if (!customer) throw new NotFoundException('Customer not found');
+    if (!customer) throw new NotFoundAppException('Customer');
 
     if (user && user.role === UserRole.DEALER && user.profileId) {
       const hasAccess = customer.workOrders.some(
         (wo: { dealerId: string }) => wo.dealerId === user.profileId,
       );
       if (!hasAccess) {
-        throw new NotFoundException('Customer not found');
+        throw new NotFoundAppException('Customer');
       }
     }
 
@@ -83,6 +93,23 @@ export class CustomersService {
 
   async remove(id: string, user?: AuthenticatedUser) {
     await this.findById(id, user);
+
+    const activeOrders = await this.prisma.workOrder.count({
+      where: {
+        customerId: id,
+        status: {
+          notIn: [WorkOrderStatus.COMPLETED, WorkOrderStatus.CANCELLED],
+        },
+      },
+    });
+
+    if (activeOrders > 0) {
+      throw new ConflictAppException(
+        'Cannot delete customer with active work orders',
+        ErrorCodes.CONFLICT_ACTIVE_ORDERS,
+      );
+    }
+
     await this.prisma.customer.delete({ where: { id } });
     return { deleted: true };
   }

@@ -1,13 +1,14 @@
-import {
-  Injectable,
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../common/prisma.service.js';
+import {
+  BadRequestAppException,
+  ConflictAppException,
+  NotFoundAppException,
+  ForbiddenAppException,
+} from '../common/errors/app-exception.js';
+import { ErrorCodes } from '../common/errors/error-codes.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { UserRole } from '../../generated/prisma/enums.js';
 import type { AuthenticatedUser } from '../common/services/scoping.service.js';
@@ -28,19 +29,19 @@ export class RegistrationService {
 
   async register(dto: RegisterDto) {
     if (dto.role !== UserRole.TECHNICIAN && dto.role !== UserRole.DEALER) {
-      throw new BadRequestException(
+      throw new BadRequestAppException(
         'Registration is only available for Technician or Dealer roles',
       );
     }
 
     if (dto.role === UserRole.TECHNICIAN && !dto.subDistrict) {
-      throw new BadRequestException(
+      throw new BadRequestAppException(
         'subDistrict is required for Technician registration',
       );
     }
 
     if (dto.role === UserRole.DEALER && !dto.companyName) {
-      throw new BadRequestException(
+      throw new BadRequestAppException(
         'companyName is required for Dealer registration',
       );
     }
@@ -49,14 +50,17 @@ export class RegistrationService {
       where: { email: dto.email },
     });
     if (existing) {
-      throw new ConflictException('Email already registered');
+      throw new ConflictAppException(
+        'Email already registered',
+        ErrorCodes.CONFLICT_DUPLICATE,
+      );
     }
 
     const existingRequest = await this.prisma.registrationRequest.findUnique({
       where: { email: dto.email },
     });
     if (existingRequest && existingRequest.status === 'PENDING') {
-      throw new ConflictException(
+      throw new ConflictAppException(
         'A pending registration request already exists for this email',
       );
     }
@@ -103,11 +107,11 @@ export class RegistrationService {
     });
 
     if (!request) {
-      throw new NotFoundException('Registration request not found');
+      throw new NotFoundAppException('Registration request');
     }
 
     if (request.status !== 'PENDING') {
-      throw new BadRequestException(
+      throw new BadRequestAppException(
         `Request is already ${request.status.toLowerCase()}`,
       );
     }
@@ -162,11 +166,11 @@ export class RegistrationService {
     });
 
     if (!request) {
-      throw new NotFoundException('Registration request not found');
+      throw new NotFoundAppException('Registration request');
     }
 
     if (request.status !== 'PENDING') {
-      throw new BadRequestException(
+      throw new BadRequestAppException(
         `Request is already ${request.status.toLowerCase()}`,
       );
     }
@@ -183,12 +187,14 @@ export class RegistrationService {
 
   private verifyApproverAccess(approverRole: string, targetRole: UserRole) {
     if (approverRole === 'COORDINATOR' && targetRole !== UserRole.TECHNICIAN) {
-      throw new ForbiddenException(
+      throw new ForbiddenAppException(
         'Coordinators can only approve Technician registrations',
       );
     }
     if (approverRole === 'HQ' && targetRole !== UserRole.DEALER) {
-      throw new ForbiddenException('HQ can only approve Dealer registrations');
+      throw new ForbiddenAppException(
+        'HQ can only approve Dealer registrations',
+      );
     }
   }
 }

@@ -105,8 +105,18 @@ export class LocationGateway
     request: IncomingMessage,
   ): Promise<void> {
     try {
+      // Prefer token from Sec-WebSocket-Protocol header (more secure — avoids
+      // token leaking into server logs via URL query params). Fall back to
+      // query param for backward compatibility with existing clients.
+      const protocolHeader =
+        (request.headers['sec-websocket-protocol'] as string) ?? '';
       const url = new URL(request.url ?? '', 'http://localhost');
-      const token = url.searchParams.get('token');
+      const token =
+        protocolHeader
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)[0] ?? url.searchParams.get('token');
+
       if (!token) {
         client.close(4001, 'Missing token');
         return;

@@ -67,7 +67,11 @@ export class LocationSocket {
     this.handlers.clear()
     if (this.ws) {
       this.ws.onclose = null
-      this.ws.close()
+      this.ws.onerror = null
+      this.ws.onmessage = null
+      if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CLOSING) {
+        this.ws.close()
+      }
       this.ws = null
     }
   }

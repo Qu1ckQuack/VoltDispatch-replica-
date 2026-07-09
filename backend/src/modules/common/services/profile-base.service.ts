@@ -1,6 +1,9 @@
-import { NotFoundException, ConflictException } from '@nestjs/common';
 import type { PrismaService } from '../prisma.service.js';
 import type { UsersService } from '../../users/users.service.js';
+import {
+  NotFoundAppException,
+  ConflictAppException,
+} from '../errors/app-exception.js';
 
 type PrismaDelegate = {
   findUnique: (
@@ -32,15 +35,14 @@ export abstract class ProfileBaseService {
 
   async findByUserId(userId: string): Promise<Record<string, unknown>> {
     const profile = await this.delegate.findUnique({ where: { userId } });
-    if (!profile)
-      throw new NotFoundException(`${this.displayName} profile not found`);
+    if (!profile) throw new NotFoundAppException(`${this.displayName} profile`);
     return profile;
   }
 
   protected async profileExists(userId: string): Promise<void> {
     const existing = await this.delegate.findUnique({ where: { userId } });
     if (existing)
-      throw new ConflictException(
+      throw new ConflictAppException(
         `User already has a ${this.displayName.toLowerCase()} profile`,
       );
   }
@@ -54,7 +56,7 @@ export abstract class ProfileBaseService {
       where: { id },
       include,
     });
-    if (!profile) throw new NotFoundException(`${this.displayName} not found`);
+    if (!profile) throw new NotFoundAppException(`${this.displayName}`);
     return profile;
   }
 

@@ -1,10 +1,9 @@
+import { Injectable, Logger } from '@nestjs/common';
 import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  ForbiddenException,
-  ConflictException,
-} from '@nestjs/common';
+  NotFoundAppException,
+  ForbiddenAppException,
+  ConflictAppException,
+} from '../common/errors/app-exception.js';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../common/prisma.service.js';
 import {
@@ -56,9 +55,9 @@ export class WorkOrdersService {
     private readonly redis: RedisService,
   ) {}
 
-  create(dto: CreateWorkOrderDto, user: AuthenticatedUser) {
+  async create(dto: CreateWorkOrderDto, user: AuthenticatedUser) {
     if (!user.profileId) {
-      throw new ForbiddenException('User has no dealer profile');
+      throw new ForbiddenAppException('User has no dealer profile');
     }
 
     return this.prisma.workOrder.create({
@@ -116,7 +115,7 @@ export class WorkOrdersService {
     });
 
     if (!order) {
-      throw new NotFoundException('Work order not found');
+      throw new NotFoundAppException('Work order');
     }
 
     return order;
@@ -143,7 +142,7 @@ export class WorkOrdersService {
     const updated = await this.prisma.$transaction(async (tx) => {
       const current = await tx.workOrder.findUnique({ where: { id } });
       if (!current || current.status !== order.status) {
-        throw new ConflictException(
+        throw new ConflictAppException(
           'Work order was modified by another request',
         );
       }
@@ -192,47 +191,13 @@ export class WorkOrdersService {
 
   async assign(id: string, dto: AssignWorkOrderDto, user: AuthenticatedUser) {
     const order = await this.findById(id, user);
-
-    this.stateMachine.validate(order.status, WorkOrderStatus.ASSIGNED);
-
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const current = await tx.workOrder.findUnique({ where: { id } });
-      if (!current || current.status !== order.status) {
-        throw new ConflictException(
-          'Work order was modified by another request',
-        );
-      }
-
-      await tx.workOrderStatusHistory.create({
-        data: {
-          workOrderId: id,
-          fromStatus: current.status,
-          toStatus: WorkOrderStatus.ASSIGNED,
-          changedByUserId: user.id,
-        },
-      });
-
-      return tx.workOrder.update({
-        where: { id },
-        data: {
-          status: WorkOrderStatus.ASSIGNED,
-          technicianId: dto.technicianId,
-        },
-        include: { customer: true, device: true, technician: true },
-      });
+    return this.transition({
+      id,
+      toStatus: WorkOrderStatus.ASSIGNED,
+      user,
+      existingOrder: order,
+      extraData: { technicianId: dto.technicianId },
     });
-
-    this.eventEmitter.emit(
-      WorkOrderStatusChangedEvent.name,
-      new WorkOrderStatusChangedEvent(
-        id,
-        order.status,
-        WorkOrderStatus.ASSIGNED,
-        updated,
-      ),
-    );
-
-    return updated;
   }
 
   accept(id: string, user: AuthenticatedUser) {
@@ -291,13 +256,15 @@ export class WorkOrdersService {
 
     const allowedRoles = CANCEL_RULES[order.status];
     if (!allowedRoles || !allowedRoles.includes(user.role)) {
-      throw new ForbiddenException(
+      throw new ForbiddenAppException(
         `Cannot cancel work order in status ${order.status} as role ${user.role}`,
       );
     }
 
     if (user.role === 'CUSTOMER' && order.customerId !== user.id) {
-      throw new ForbiddenException('You can only cancel your own work orders');
+      throw new ForbiddenAppException(
+        'You can only cancel your own work orders',
+      );
     }
 
     if (
@@ -305,7 +272,7 @@ export class WorkOrdersService {
       order.technicianId &&
       order.technicianId !== user.profileId
     ) {
-      throw new ForbiddenException(
+      throw new ForbiddenAppException(
         'You can only cancel your own assigned work orders',
       );
     }

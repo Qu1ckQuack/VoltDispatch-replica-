@@ -1,12 +1,13 @@
 import {
   Injectable,
   ExecutionContext,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
 import { TokenRevokeService } from '../services/token-revoke.service.js';
+import { UnauthorizedAppException } from '../errors/app-exception.js';
+import { ErrorCodes } from '../errors/error-codes.js';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -38,7 +39,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     const user = request.user as { id: string } | undefined;
     if (user) {
       if (await this.tokenRevokeService.isRevoked(user.id)) {
-        throw new UnauthorizedException('Token has been revoked');
+        throw new UnauthorizedAppException('Token has been revoked', ErrorCodes.AUTH_TOKEN_REVOKED);
       }
     }
 

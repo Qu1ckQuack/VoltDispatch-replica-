@@ -1,4 +1,5 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { NotFoundAppException } from '../common/errors/app-exception.js';
 import { ModuleRef } from '@nestjs/core';
 import { Queue } from 'bullmq';
 import { InjectQueue } from '../bullmq/helpers.js';
@@ -100,7 +101,7 @@ export class NotificationsService {
     });
 
     if (!notification) {
-      throw new NotFoundException(`Notification ${notificationId} not found`);
+      throw new NotFoundAppException(`Notification ${notificationId}`);
     }
 
     const adapter = this.getAdapter(channel);
@@ -178,7 +179,7 @@ export class NotificationsService {
     const notification = await this.prisma.notification.findUnique({
       where: { id },
     });
-    if (!notification) throw new NotFoundException('Notification not found');
+    if (!notification) throw new NotFoundAppException('Notification');
     return notification;
   }
 

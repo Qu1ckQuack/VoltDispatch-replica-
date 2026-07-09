@@ -21,7 +21,11 @@ export class NotificationSubscriber {
   @OnEvent(WorkOrderStatusChangedEvent.name)
   async handleStatusChange(event: WorkOrderStatusChangedEvent): Promise<void> {
     try {
-      await this.notifyStatusChange(event.order, event.fromStatus, event.toStatus);
+      await this.notifyStatusChange(
+        event.order,
+        event.fromStatus,
+        event.toStatus,
+      );
     } catch (err) {
       this.logger.error(
         `Failed to send notification for order ${event.orderId}: ${(err as Error).message}`,
@@ -139,15 +143,24 @@ export class NotificationSubscriber {
     switch (toStatus) {
       case WorkOrderStatus.ASSIGNED:
         if (order.technicianId) {
-          await this.notifyTechnician(order.id, order.technicianId, 'order_assigned');
+          await this.notifyTechnician(
+            order.id,
+            order.technicianId,
+            'order_assigned',
+          );
         }
         break;
 
       case WorkOrderStatus.ACCEPTED:
         if (order.technicianId) {
-          await this.notifyTechnician(order.id, order.technicianId, 'status_change', {
-            newStatus: 'ACCEPTED',
-          });
+          await this.notifyTechnician(
+            order.id,
+            order.technicianId,
+            'status_change',
+            {
+              newStatus: 'ACCEPTED',
+            },
+          );
         }
         break;
 
@@ -157,23 +170,39 @@ export class NotificationSubscriber {
 
       case WorkOrderStatus.IN_PROGRESS:
         if (order.technicianId) {
-          await this.notifyTechnician(order.id, order.technicianId, 'status_change', {
-            newStatus: 'IN_PROGRESS',
-          });
+          await this.notifyTechnician(
+            order.id,
+            order.technicianId,
+            'status_change',
+            {
+              newStatus: 'IN_PROGRESS',
+            },
+          );
         }
         break;
 
       case WorkOrderStatus.COMPLETED:
-        await this.notifyCustomer(order.id, order.customerId, null, 'rating_request', {
-          ratingUrl: `${process.env.FRONTEND_URL ?? 'http://localhost:3000'}/rate/${order.id}`,
-        });
+        await this.notifyCustomer(
+          order.id,
+          order.customerId,
+          null,
+          'rating_request',
+          {
+            ratingUrl: `${process.env.FRONTEND_URL ?? 'http://localhost:3000'}/rate/${order.id}`,
+          },
+        );
         break;
 
       case WorkOrderStatus.RESCHEDULED:
         if (order.technicianId) {
-          await this.notifyTechnician(order.id, order.technicianId, 'status_change', {
-            newStatus: 'RESCHEDULED',
-          });
+          await this.notifyTechnician(
+            order.id,
+            order.technicianId,
+            'status_change',
+            {
+              newStatus: 'RESCHEDULED',
+            },
+          );
         }
         break;
 
@@ -181,7 +210,9 @@ export class NotificationSubscriber {
       case WorkOrderStatus.ESCALATED:
         await this.notifyDealer(
           order.id,
-          toStatus === WorkOrderStatus.ESCALATED ? 'issue_escalated' : 'status_change',
+          toStatus === WorkOrderStatus.ESCALATED
+            ? 'issue_escalated'
+            : 'status_change',
           { newStatus: toStatus },
         );
         break;

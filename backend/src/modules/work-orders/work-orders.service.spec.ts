@@ -4,10 +4,10 @@ jest.mock('../common/prisma.service.js', () => ({
 
 import { Test, TestingModule } from '@nestjs/testing';
 import {
-  NotFoundException,
-  ForbiddenException,
-  BadRequestException,
-} from '@nestjs/common';
+  NotFoundAppException,
+  ForbiddenAppException,
+  BadRequestAppException,
+} from '../common/errors/app-exception.js';
 import { WorkOrdersService } from './work-orders.service.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { ScopingService } from '../common/services/scoping.service.js';
@@ -181,7 +181,7 @@ describe('WorkOrdersService', () => {
           'order-1',
           makeUser({ role: 'DEALER', profileId: 'dealer-1' }),
         ),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(NotFoundAppException);
     });
   });
 
@@ -217,7 +217,7 @@ describe('WorkOrdersService', () => {
       mockApplyWorkOrderScope.mockResolvedValue({});
       mockPrismaWorkOrderFindFirst.mockResolvedValue(order);
       mockStateMachineValidate.mockImplementation(() => {
-        throw new BadRequestException(
+        throw new BadRequestAppException(
           'Cannot transition from REQUESTED to EN_ROUTE',
         );
       });
@@ -227,7 +227,7 @@ describe('WorkOrdersService', () => {
           'order-1',
           makeUser({ role: 'TECHNICIAN', profileId: 'tech-1' }),
         ),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(BadRequestAppException);
     });
 
     it('sets completedAt on COMPLETED transition', async () => {
@@ -431,7 +431,7 @@ describe('WorkOrdersService', () => {
           'order-1',
           makeUser({ role: 'DEALER', profileId: 'dealer-1' }),
         ),
-      ).rejects.toThrow(ForbiddenException);
+      ).rejects.toThrow(ForbiddenAppException);
     });
 
     it('allows TECHNICIAN to cancel ACCEPTED order (own)', async () => {
@@ -491,7 +491,7 @@ describe('WorkOrdersService', () => {
 
       await expect(
         service.cancel('order-1', makeUser({ role: 'CUSTOMER', id: 'cust-2' })),
-      ).rejects.toThrow(ForbiddenException);
+      ).rejects.toThrow(ForbiddenAppException);
     });
 
     it('forbids TECHNICIAN to cancel another technician assigned order', async () => {
@@ -507,7 +507,7 @@ describe('WorkOrdersService', () => {
           'order-1',
           makeUser({ role: 'TECHNICIAN', profileId: 'tech-1' }),
         ),
-      ).rejects.toThrow(ForbiddenException);
+      ).rejects.toThrow(ForbiddenAppException);
     });
 
     it('forbids HQ to cancel ACCEPTED order', async () => {
@@ -520,7 +520,7 @@ describe('WorkOrdersService', () => {
 
       await expect(
         service.cancel('order-1', makeUser({ role: 'HQ' })),
-      ).rejects.toThrow(ForbiddenException);
+      ).rejects.toThrow(ForbiddenAppException);
     });
   });
 });

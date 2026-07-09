@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { Worker } from 'bullmq';
 import { NOTIFICATION_QUEUE_NAME } from '../../bullmq/queues/notification.queue.js';
 import { NotificationsService } from '../notifications.service.js';
-import { buildRedisConnectionOptions } from '../../common/utils/redis-connection.js';
+import { buildBullmqConnectionOptions } from '../../common/utils/redis-connection.js';
 
 @Injectable()
 export class NotificationWorker implements OnModuleInit, OnModuleDestroy {
@@ -34,7 +34,7 @@ export class NotificationWorker implements OnModuleInit, OnModuleDestroy {
         await this.notificationsService.process(notificationId, channel);
       },
       {
-        connection: buildRedisConnectionOptions(this.config),
+        connection: buildBullmqConnectionOptions(this.config),
         concurrency: 5,
       },
     );

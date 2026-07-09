@@ -1,7 +1,7 @@
 import { Global, Inject, Module, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
-import { buildRedisConnectionOptions } from '../common/utils/redis-connection.js';
+import { buildBullmqConnectionOptions } from '../common/utils/redis-connection.js';
 import {
   createNotificationQueue,
   NOTIFICATION_QUEUE_NAME,
@@ -17,13 +17,13 @@ import {
     {
       provide: NOTIFICATION_QUEUE_NAME,
       useFactory: (config: ConfigService) =>
-        createNotificationQueue(buildRedisConnectionOptions(config)),
+        createNotificationQueue(buildBullmqConnectionOptions(config)),
       inject: [ConfigService],
     },
     {
       provide: SLA_TIMER_QUEUE_NAME,
       useFactory: (config: ConfigService) =>
-        createSlaTimerQueue(buildRedisConnectionOptions(config)),
+        createSlaTimerQueue(buildBullmqConnectionOptions(config)),
       inject: [ConfigService],
     },
   ],

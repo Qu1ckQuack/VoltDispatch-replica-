@@ -1,4 +1,6 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { UnauthorizedAppException } from '../../common/errors/app-exception.js';
+import { ErrorCodes } from '../../common/errors/error-codes.js';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { TokenRevokeService } from '../../common/services/token-revoke.service.js';
@@ -22,7 +24,7 @@ export class WsAuthService {
   async verify(token: string, origin: string): Promise<WsAuthenticatedUser> {
     const allowedOrigins = this.getAllowedOrigins();
     if (allowedOrigins.length > 0 && !allowedOrigins.includes(origin)) {
-      throw new UnauthorizedException('Origin not allowed');
+      throw new UnauthorizedAppException('Origin not allowed', ErrorCodes.AUTH_WS_ORIGIN_DENIED);
     }
 
     try {
@@ -36,13 +38,13 @@ export class WsAuthService {
       }>(token);
 
       if (payload.type !== 'access' && payload.type !== 'customer') {
-        throw new UnauthorizedException('Invalid token type for WebSocket');
+        throw new UnauthorizedAppException('Invalid token type for WebSocket', ErrorCodes.AUTH_INVALID_TOKEN);
       }
 
       if (payload.type === 'access') {
         const revoked = await this.tokenRevokeService.isRevoked(payload.sub);
         if (revoked) {
-          throw new UnauthorizedException('Token has been revoked');
+          throw new UnauthorizedAppException('Token has been revoked', ErrorCodes.AUTH_TOKEN_REVOKED);
         }
       }
 
@@ -54,8 +56,8 @@ export class WsAuthService {
         name: payload.name,
       };
     } catch (err) {
-      if (err instanceof UnauthorizedException) throw err;
-      throw new UnauthorizedException('Invalid or expired token');
+      if (err instanceof UnauthorizedAppException) throw err;
+      throw new UnauthorizedAppException('Invalid or expired token', ErrorCodes.AUTH_TOKEN_EXPIRED);
     }
   }
 

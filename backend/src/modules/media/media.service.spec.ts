@@ -3,7 +3,10 @@ jest.mock('../common/prisma.service.js', () => ({
 }));
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  NotFoundAppException,
+  ForbiddenAppException,
+} from '../common/errors/app-exception.js';
 import { MediaService } from './media.service.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { S3StorageService } from './s3-storage.service.js';
@@ -124,7 +127,7 @@ describe('MediaService', () => {
 
       await expect(
         service.upload('wo-missing', 'BEFORE', mockFile, mockUser),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(NotFoundAppException);
     });
 
     it('should throw ForbiddenException when technician not assigned', async () => {
@@ -135,7 +138,7 @@ describe('MediaService', () => {
 
       await expect(
         service.upload('wo-1', 'BEFORE', mockFile, mockUser),
-      ).rejects.toThrow(ForbiddenException);
+      ).rejects.toThrow(ForbiddenAppException);
     });
 
     it('should allow HQ to upload regardless of assignment', async () => {
@@ -198,7 +201,7 @@ describe('MediaService', () => {
 
       await expect(
         service.findByWorkOrder('wo-1', { ...mockUser, role: 'DEALER' }),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(NotFoundAppException);
     });
   });
 
@@ -234,7 +237,7 @@ describe('MediaService', () => {
       });
 
       await expect(service.delete('wo-1', 'img-1', mockUser)).rejects.toThrow(
-        ForbiddenException,
+        ForbiddenAppException,
       );
     });
 
@@ -261,7 +264,7 @@ describe('MediaService', () => {
 
       await expect(
         service.delete('wo-1', 'img-1', { ...mockUser, role: 'DEALER' }),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(NotFoundAppException);
     });
 
     it('should throw NotFoundException when image does not belong to work order', async () => {
@@ -275,7 +278,7 @@ describe('MediaService', () => {
       });
 
       await expect(service.delete('wo-1', 'img-1', mockUser)).rejects.toThrow(
-        NotFoundException,
+        NotFoundAppException,
       );
     });
   });

@@ -6,7 +6,6 @@ import {
   Delete,
   Param,
   Body,
-  BadRequestException,
 } from '@nestjs/common';
 import { TechniciansService } from './technicians.service.js';
 import { CreateTechnicianDto } from './dto/create-technician.dto.js';
@@ -15,6 +14,7 @@ import { UpdateStatusDto } from './dto/update-status.dto.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import type { AuthenticatedUser } from '../common/services/scoping.service.js';
+import { BadRequestAppException } from '../common/errors/app-exception.js';
 
 @Controller('technicians')
 export class TechniciansController {
@@ -57,7 +57,7 @@ export class TechniciansController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     if (!user.profileId) {
-      throw new BadRequestException(
+      throw new BadRequestAppException(
         'No technician profile linked to this user',
       );
     }

@@ -1,11 +1,10 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  ForbiddenException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../common/prisma.service.js';
+import {
+  NotFoundAppException,
+  ForbiddenAppException,
+  BadRequestAppException,
+} from '../common/errors/app-exception.js';
 import { ScopingService } from '../common/services/scoping.service.js';
 import { handlePrismaError } from '../common/utils/prisma-error.js';
 import { WorkOrderStatus } from '../../generated/prisma/enums.js';
@@ -37,20 +36,20 @@ export class RatingsService {
     });
 
     if (!workOrder) {
-      throw new NotFoundException('Work order not found');
+      throw new NotFoundAppException('Work order');
     }
 
     if (workOrder.customerId !== user.id) {
-      throw new ForbiddenException('You can only rate your own work orders');
+      throw new ForbiddenAppException('You can only rate your own work orders');
     }
 
     if (workOrder.status !== WorkOrderStatus.COMPLETED) {
-      throw new BadRequestException('Work order is not yet completed');
+      throw new BadRequestAppException('Work order is not yet completed');
     }
 
     const technicianId = workOrder.technicianId;
     if (!technicianId) {
-      throw new BadRequestException(
+      throw new BadRequestAppException(
         'No technician assigned to this work order',
       );
     }
@@ -105,7 +104,7 @@ export class RatingsService {
     });
 
     if (!workOrder) {
-      throw new NotFoundException('Work order not found');
+      throw new NotFoundAppException('Work order');
     }
 
     const rating = await this.prisma.rating.findUnique({
@@ -122,7 +121,7 @@ export class RatingsService {
     });
 
     if (!rating) {
-      throw new NotFoundException('Rating not found');
+      throw new NotFoundAppException('Rating');
     }
 
     const scope = await this.scopingService.applyWorkOrderScope(user);
@@ -132,7 +131,7 @@ export class RatingsService {
     });
 
     if (!workOrder) {
-      throw new NotFoundException('Work order not found');
+      throw new NotFoundAppException('Work order');
     }
 
     await this.prisma.rating.delete({ where: { id: ratingId } });

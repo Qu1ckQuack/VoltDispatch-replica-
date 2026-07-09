@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { Queue, Worker } from 'bullmq';
 import { InjectQueue } from '../bullmq/helpers.js';
 import { SLA_TIMER_QUEUE_NAME } from '../bullmq/queues/sla-timer.queue.js';
-import { buildRedisConnectionOptions } from '../common/utils/redis-connection.js';
+import { buildBullmqConnectionOptions } from '../common/utils/redis-connection.js';
 import { WORK_ORDER_NUMBER_LENGTH } from '../common/constants.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -72,7 +72,7 @@ export class SlaService implements OnModuleInit, OnModuleDestroy {
         }
       },
       {
-        connection: buildRedisConnectionOptions(this.config),
+        connection: buildBullmqConnectionOptions(this.config),
         concurrency: 1,
       },
     );

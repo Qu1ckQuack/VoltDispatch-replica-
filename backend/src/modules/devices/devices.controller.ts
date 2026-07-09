@@ -8,6 +8,7 @@ import {
   Body,
   Query,
 } from '@nestjs/common';
+import { ForbiddenAppException } from '../common/errors/app-exception.js';
 import { DevicesService } from './devices.service.js';
 import { CreateDeviceDto } from './dto/create-device.dto.js';
 import { UpdateDeviceDto } from './dto/update-device.dto.js';
@@ -22,7 +23,10 @@ export class DevicesController {
   @Post()
   @Roles('DEALER')
   create(@Body() dto: CreateDeviceDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.devicesService.create(dto, user.profileId!);
+    if (!user.profileId) {
+      throw new ForbiddenAppException('User has no dealer profile');
+    }
+    return this.devicesService.create(dto, user.profileId);
   }
 
   @Get()
@@ -31,8 +35,13 @@ export class DevicesController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('dealerId') dealerId?: string,
   ) {
-    const scope = user.role === 'HQ' ? dealerId : user.profileId!;
-    return this.devicesService.findAll(scope);
+    if (user.role === 'DEALER') {
+      if (!user.profileId) {
+        throw new ForbiddenAppException('User has no dealer profile');
+      }
+      return this.devicesService.findAll(user.profileId);
+    }
+    return this.devicesService.findAll(dealerId);
   }
 
   @Get(':id')

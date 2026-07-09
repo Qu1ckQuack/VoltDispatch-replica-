@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { UnauthorizedException } from '@nestjs/common';
+import { UnauthorizedAppException } from '../../common/errors/app-exception.js';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { WsAuthService } from './ws-auth.service.js';
@@ -93,7 +93,7 @@ describe('WsAuthService', () => {
 
     await expect(
       service.verify('revoked-token', 'http://localhost:3000'),
-    ).rejects.toThrow(UnauthorizedException);
+    ).rejects.toThrow(UnauthorizedAppException);
   });
 
   it('should reject expired or malformed token', async () => {
@@ -104,7 +104,7 @@ describe('WsAuthService', () => {
 
     await expect(
       service.verify('bad-token', 'http://localhost:3000'),
-    ).rejects.toThrow(UnauthorizedException);
+    ).rejects.toThrow(UnauthorizedAppException);
   });
 
   it('should reject refresh token type', async () => {
@@ -118,7 +118,7 @@ describe('WsAuthService', () => {
 
     await expect(
       service.verify('refresh-token', 'http://localhost:3000'),
-    ).rejects.toThrow(UnauthorizedException);
+    ).rejects.toThrow(UnauthorizedAppException);
   });
 
   it('should allow any origin when ALLOWED_ORIGINS is not set', async () => {

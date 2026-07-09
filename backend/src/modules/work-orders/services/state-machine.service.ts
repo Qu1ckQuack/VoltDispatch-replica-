@@ -1,5 +1,7 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { WorkOrderStatus } from '../../../generated/prisma/enums.js';
+import { BadRequestAppException } from '../../common/errors/app-exception.js';
+import { ErrorCodes } from '../../common/errors/error-codes.js';
 
 const TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
   [WorkOrderStatus.REQUESTED]: [
@@ -36,7 +38,10 @@ export class StateMachineService {
   validate(from: WorkOrderStatus, to: WorkOrderStatus): void {
     const allowed = TRANSITIONS[from];
     if (!allowed || !allowed.includes(to)) {
-      throw new BadRequestException(`Cannot transition from ${from} to ${to}`);
+      throw new BadRequestAppException(
+        `Cannot transition from ${from} to ${to}`,
+        ErrorCodes.VALIDATION_INVALID_TRANSITION,
+      );
     }
   }
 

@@ -2,14 +2,18 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usersApi } from '@/lib/api'
+import { useAuthStore } from '@/lib/stores/auth-store'
+import { UserRole } from '@/lib/api/types'
 import type { CreateUserDto } from '@/lib/api/types'
 
 const USERS_KEY = 'users'
 
 export function useUsers() {
+  const currentUser = useAuthStore((s) => s.user)
   return useQuery({
     queryKey: [USERS_KEY],
     queryFn: () => usersApi.list(),
+    enabled: currentUser?.role === UserRole.HQ,
   })
 }
 
