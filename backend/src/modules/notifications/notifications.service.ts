@@ -36,18 +36,20 @@ export class NotificationsService {
     try {
       const resend = this.moduleRef.get(ResendAdapter, { strict: false });
       if (resend) this.adapters.set(resend.channel, resend);
-    } catch {
+    } catch (resendError) {
       this.logger.warn(
         'Resend adapter not registered — EMAIL notifications disabled',
+        (resendError as Error).message,
       );
     }
 
     try {
       const line = this.moduleRef.get(LineAdapter, { strict: false });
       if (line) this.adapters.set(line.channel, line);
-    } catch {
+    } catch (lineError) {
       this.logger.warn(
         'Line adapter not registered — LINE notifications disabled',
+        (lineError as Error).message,
       );
     }
   }

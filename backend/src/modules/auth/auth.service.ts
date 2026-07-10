@@ -95,16 +95,16 @@ export class AuthService {
       }
 
       return this.generateTokens(user.id, user.email, user.role);
-    } catch (err) {
-      this.logger.warn(`Refresh failed: ${extractErrorMessage(err)}`);
-      if (err instanceof UnauthorizedAppException) throw err;
-      if (err instanceof TokenExpiredError) {
+    } catch (refreshError) {
+      this.logger.warn(`Refresh failed: ${extractErrorMessage(refreshError)}`);
+      if (refreshError instanceof UnauthorizedAppException) throw refreshError;
+      if (refreshError instanceof TokenExpiredError) {
         throw new UnauthorizedAppException(
           'Refresh token expired',
           ErrorCodes.AUTH_TOKEN_EXPIRED,
         );
       }
-      if (err instanceof JsonWebTokenError) {
+      if (refreshError instanceof JsonWebTokenError) {
         throw new UnauthorizedAppException(
           'Invalid refresh token',
           ErrorCodes.AUTH_INVALID_TOKEN,
@@ -192,9 +192,9 @@ export class AuthService {
         default:
           return { profileId: null };
       }
-    } catch (err) {
+    } catch (profileError) {
       this.logger.warn(
-        `Failed to resolve profile for user ${userId}: ${extractErrorMessage(err)}`,
+        `Failed to resolve profile for user ${userId}: ${extractErrorMessage(profileError)}`,
       );
       return { profileId: null };
     }

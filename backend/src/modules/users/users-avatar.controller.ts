@@ -69,9 +69,10 @@ export class UsersAvatarController {
     if (oldKey && oldKey !== key) {
       this.s3
         .delete(oldKey)
-        .catch((err) =>
+        .catch((deleteError) =>
           this.logger.warn(
-            `Failed to delete old avatar: ${extractErrorMessage(err)}`,
+            `Failed to delete old avatar: ${extractErrorMessage(deleteError)}`,
+            deleteError,
           ),
         );
     }

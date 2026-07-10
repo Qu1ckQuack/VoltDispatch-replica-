@@ -45,8 +45,8 @@ export class MagicLinkService {
           workOrderId: activeOrder?.id ?? null,
         },
       };
-    } catch (err) {
-      this.logger.warn(`Magic link auth failed: ${(err as Error).message}`);
+    } catch (linkError) {
+      this.logger.warn(`Magic link auth failed: ${(linkError as Error).message}`);
       throw new UnauthorizedAppException(
         'Invalid or expired magic link',
         ErrorCodes.AUTH_MAGIC_LINK_EXPIRED,

@@ -52,11 +52,12 @@ export class ResendAdapter implements NotificationAdapter {
 
       const data = (await response.json()) as { id: string };
       return { success: true, externalId: data.id };
-    } catch (err) {
+    } catch (sendError) {
       this.logger.error(
-        `Failed to send email via Resend: ${(err as Error).message}`,
+        `Failed to send email via Resend: ${(sendError as Error).message}`,
+        (sendError as Error).stack,
       );
-      return { success: false, error: (err as Error).message };
+      return { success: false, error: (sendError as Error).message };
     }
   }
 }

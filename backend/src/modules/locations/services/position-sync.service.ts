@@ -21,8 +21,8 @@ export class PositionSyncService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit(): void {
     this.intervalHandle = setInterval(() => {
-      this.syncActivePositions().catch((err) => {
-        this.logger.error(`Position sync failed: ${(err as Error).message}`);
+      this.syncActivePositions().catch((syncError) => {
+        this.logger.error(`Position sync failed:`, syncError);
       });
     }, SYNC_INTERVAL_MS);
     this.logger.log(`Position sync started (interval: ${SYNC_INTERVAL_MS}ms)`);
@@ -58,10 +58,11 @@ export class PositionSyncService implements OnModuleInit, OnModuleDestroy {
           },
         });
         updated++;
-      } catch (err) {
+      } catch (updateError) {
         failed++;
         this.logger.warn(
-          `Failed to sync position for technician ${technicianId}: ${(err as Error).message}`,
+          `Failed to sync position for technician ${technicianId}: ${(updateError as Error).message}`,
+          (updateError as Error).stack,
         );
       }
     }

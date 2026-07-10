@@ -29,9 +29,10 @@ export class LocationService {
           },
         });
       }
-    } catch (err) {
+    } catch (syncError) {
       this.logger.warn(
-        `Failed to sync position for technician ${technicianId}: ${(err as Error).message}`,
+        `Failed to sync position for technician ${technicianId}: ${(syncError as Error).message}`,
+        (syncError as Error).stack,
       );
     }
   }
@@ -90,9 +91,10 @@ export class LocationService {
         );
       });
       return rows[0]?.department;
-    } catch (err) {
+    } catch (deptError) {
       this.logger.warn(
-        `Failed to resolve department for coordinator ${userId}: ${(err as Error).message}`,
+        `Failed to resolve department for coordinator ${userId}: ${(deptError as Error).message}`,
+        (deptError as Error).stack,
       );
       return undefined;
     }

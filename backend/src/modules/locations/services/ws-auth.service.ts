@@ -4,6 +4,7 @@ import { ErrorCodes } from '../../common/errors/error-codes.js';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { TokenRevokeService } from '../../common/services/token-revoke.service.js';
+import { isOriginAllowed } from '../../common/utils/origin-allowed.js';
 
 export interface WsAuthenticatedUser {
   id: string;
@@ -23,7 +24,7 @@ export class WsAuthService {
 
   async verify(token: string, origin: string): Promise<WsAuthenticatedUser> {
     const allowedOrigins = this.getAllowedOrigins();
-    if (allowedOrigins.length > 0 && !allowedOrigins.includes(origin)) {
+    if (origin && !isOriginAllowed(origin, allowedOrigins)) {
       throw new UnauthorizedAppException(
         'Origin not allowed',
         ErrorCodes.AUTH_WS_ORIGIN_DENIED,

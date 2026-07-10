@@ -26,9 +26,10 @@ export class NotificationSubscriber {
         event.fromStatus,
         event.toStatus,
       );
-    } catch (err) {
+    } catch (notifError) {
       this.logger.error(
-        `Failed to send notification for order ${event.orderId}: ${(err as Error).message}`,
+        `Failed to send notification for order ${event.orderId}: ${(notifError as Error).message}`,
+        (notifError as Error).stack,
       );
     }
   }

@@ -79,9 +79,10 @@ export class LocationGateway
       this.logger.log(
         `Subscribed to Redis channels: ${LOCATION_UPDATES_CHANNEL}, ${HQ_ACTIVITIES_CHANNEL}`,
       );
-    } catch (err) {
+    } catch (subError) {
       this.logger.error(
-        `Failed to subscribe to Redis channels: ${(err as Error).message}`,
+        `Failed to subscribe to Redis channels: ${(subError as Error).message}`,
+        (subError as Error).stack,
       );
     }
   }
@@ -131,9 +132,9 @@ export class LocationGateway
       this.send(client, 'connected', { userId: user.id, role: user.role });
       await this.autoSubscribe(client, user);
       this.logger.debug(`WS connected: ${user.role}:${user.id}`);
-    } catch (err) {
-      this.logger.warn(`WS connection rejected: ${(err as Error).message}`);
-      client.close(4001, (err as Error).message);
+    } catch (authError) {
+      this.logger.warn(`WS connection rejected: ${(authError as Error).message}`);
+      client.close(4001, (authError as Error).message);
     }
   }
 
@@ -313,9 +314,9 @@ export class LocationGateway
           JSON.parse(message) as Record<string, unknown>,
         );
       }
-    } catch (err) {
+    } catch (msgError) {
       this.logger.warn(
-        `Invalid pub/sub message on channel ${channel}: ${(err as Error).message}`,
+        `Invalid pub/sub message on channel ${channel}: ${(msgError as Error).message}`,
       );
     }
   }

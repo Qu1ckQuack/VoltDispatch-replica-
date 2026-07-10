@@ -58,9 +58,12 @@ export class LineAdapter implements NotificationAdapter {
       }
 
       return { success: true };
-    } catch (err) {
-      this.logger.error(`Failed to send LINE push: ${(err as Error).message}`);
-      return { success: false, error: (err as Error).message };
+    } catch (sendError) {
+      this.logger.error(
+        `Failed to send LINE push: ${(sendError as Error).message}`,
+        (sendError as Error).stack,
+      );
+      return { success: false, error: (sendError as Error).message };
     }
   }
 }
